@@ -2104,7 +2104,7 @@ local rules = { page=1, pages={} , closeBtn=nil, prevBtn=nil, nextBtn=nil }
 -- ここでページ定義（必要に応じて増やせます）
 local function _makeRulesPages()
   local p = {}
-  -- 例1: 盤画像＋概要
+  -- 盤画像＋概要
   table.insert(p, {
     draw=function(px,py,pw,ph)
       local title = "闘いの舞台"
@@ -2113,10 +2113,13 @@ local function _makeRulesPages()
       love.graphics.setFont(fonts.ui)
       local tx = px+20; local ty = py+100; local tw = pw-48
       local text =
-        "闘いの舞台となるのはこの縦横8本の罫線が引かれた盤の上。\n" ..
-        "白と黒の駒が世界の存亡を賭けてぶつかり合います。\n" ..
+        "闘いの舞台となるのはこの縦横\n" ..
+        "8本の罫線が引かれた盤の上。\n" ..
+        "白と黒の駒が世界の存亡を賭けて\n" ..
+        "ぶつかり合います。\n" ..
         "手前側があなたの駒。\n" ..
-        "プレイヤーは交互に自分の駒を1つ、上下左右のいずれかに1歩ずつ進めていきます。"
+        "プレイヤーは交互に自分の駒を1つ、上下左右のいずれかに\n" ..
+        "1歩ずつ進めていきます。"
       love.graphics.printf(text, tx, ty, tw*0.45, "left")
 
       -- 右側に盤イメージ
@@ -2130,40 +2133,77 @@ local function _makeRulesPages()
       end
     end
   })
-  -- 例2: 駒の相性
+
+  -- 駒の相性
   table.insert(p, {
     draw=function(px,py,pw,ph)
+      -- タイトル
       love.graphics.setFont(fonts.title)
       love.graphics.setColor(0,0,0,1)
       love.graphics.printf("三つの駒", px, py+10, pw, "center")
+      local titleBottom = py + 10 + fonts.title:getHeight() + 12  -- タイトルの直下Y
 
-      local cx = px + pw*0.5
-      local y0 = py + 180
-
-      love.graphics.setColor(1,1,1,1)
-      love.graphics.draw(compati,cx,y0,s,s)
-
-      love.graphics.setColor(0,0,0,1)
+      -- 説明文（先に高さだけ計算しておく）
+      local text = 
+        "陽(赤)、地(緑)、海(青)の3つの駒があなたの世界を形作っています。\n" ..
+        "陽、地、海各4個、計12個があなたの駒です。\n" ..
+        "陽は地に強く、地は海に強く、海は陽に強い。\n" ..
+        "相手の駒と隣り合った時、違う色ならば不利な駒が、同じ色なら両方が消滅します。"
       love.graphics.setFont(fonts.ui)
-      local tx, ty, tw = px+24, py+80, pw-48
-      love.graphics.printf(
-        "青(海)は赤(陽)に勝ち、赤(陽)は緑(地)に勝ち、緑(地)は青(海)に勝ちます。\n" ..
-        "同色が隣接すると双方が消滅します。複数マスで同時に解決します。",
-        tx, ty, tw, "left"
-      )
+      local tw = pw - 48
+      local _, lines = fonts.ui:getWrap(text, tw)
+      local descH = #lines * fonts.ui:getHeight()
+      local bottomPad   = 24         -- パネル下の余白
+      local gapTitleImg = 12         -- タイトルと画像の間
+      local gapImgText  = 16         -- 画像と説明の間
+
+      -- 画像の描画領域（タイトル下〜説明文上）の矩形を決める
+      local imgTop    = titleBottom + gapTitleImg
+      local imgBottom = py + ph - bottomPad - descH - gapImgText
+      local maxW      = pw - 80
+      local maxH      = math.max(40, imgBottom - imgTop)
+
+      -- 画像（パネル中央に収まる倍率で）
+      if compati and maxH > 0 then
+        local iw, ih = compati:getWidth(), compati:getHeight()
+        local s  = math.min(maxW/iw, maxH/ih, 1.0)  -- パネルからはみ出さない最大倍率
+        local cx = px + pw/2
+        local cy = imgTop + maxH/2
+        love.graphics.setColor(1,1,1,1)
+        love.graphics.draw(compati, cx, cy, 0, s, s, iw/2, ih/2)  -- 中央基準で描く
+      end
+
+      -- 説明文（画像の下端にぴったり続けて描く）
+      local descTop = imgBottom + gapImgText
+      love.graphics.setColor(0,0,0,1)
+      love.graphics.printf(text, px+24, descTop, tw, "left")
+
+      -- テキストの折り返し高から画像領域を計算
+      local _, lines = fonts.ui:getWrap(text, tw)
+      local textH = #lines * fonts.ui:getHeight()
     end
   })
-  -- 例3: 反則/勝敗
+  
+  -- 勝敗
   table.insert(p, {
     draw=function(px,py,pw,ph)
       love.graphics.setFont(fonts.title); love.graphics.setColor(0,0,0,1)
-      love.graphics.printf("戻し禁止・勝敗条件", px, py+10, pw, "center")
+      love.graphics.printf("三つの敗北条件", px, py+20, pw, "center")
       love.graphics.setFont(fonts.ui)
-      local tx = px+24; local ty = py+80; local tw = pw-48
+      local tx = px+45; local ty = py+90; local tw = pw-48
       love.graphics.printf(
-        "・直前にいたマスへ即座に戻る手はできません（1手禁止）。\n" ..
-        "・相手の駒が3枚未満、または3色のうち2色以下しか残らなくなったら勝ちです。\n" ..
-        "・同時に条件を満たした場合は、手番を指した側の勝ちです。",
+        "以下の状態になると世界の均衡が崩壊し、敗北します。\n" ..
+        "・残り駒数が3つ以下になる\n" ..
+        "・駒が2色以下になる\n" ..
+        "・引き分けになる一手を差す",
+        tx, ty, tw, "left"
+      )
+      love.graphics.setFont(fonts.title); love.graphics.setColor(0,0,0,1)
+      love.graphics.printf("禁じ手", px, py+240, pw, "center")
+      love.graphics.setFont(fonts.ui)
+      local tx = px+45; local ty = py+310; local tw = pw-48
+      love.graphics.printf(
+        "動かした駒を次の自分の手番で元の位置に戻すことはできません。",
         tx, ty, tw, "left"
       )
     end
@@ -2217,9 +2257,9 @@ function rules.draw()
     love.graphics.printf(label, b.x, b.y + (b.h - (fonts.ui:getHeight()))/2 - 2, b.w, "center")
     love.graphics.setColor(1,1,1,1)
   end
-  _btn(rules.prevBtn, "Prev", rules.page<=1)
+  _btn(rules.prevBtn, "＜", rules.page<=1)
   _btn(rules.closeBtn,"Close", false)
-  _btn(rules.nextBtn, "Next", rules.page>=#rules.pages)
+  _btn(rules.nextBtn, "＞", rules.page>=#rules.pages)
 end
 
 function rules.mousepressed(x,y,b)
