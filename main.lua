@@ -320,6 +320,7 @@ end
 -- 画像/描画
 local board, boardW, boardH
 local boarda, boardWa, boardHa
+local compati
 local pieceImg = {}
 local logo
 local BOARD_INNER = { x=0, y=0, w=0, h=0 }
@@ -2132,24 +2133,19 @@ local function _makeRulesPages()
   -- 例2: 駒の相性
   table.insert(p, {
     draw=function(px,py,pw,ph)
-      love.graphics.setFont(fonts.title); love.graphics.setColor(0,0,0,1)
+      love.graphics.setFont(fonts.title)
+      love.graphics.setColor(0,0,0,1)
       love.graphics.printf("三つの駒", px, py+10, pw, "center")
-      -- 駒画像で相性を視覚化
-      local function _drawPiece(id,x,y,scalePix)
-        local img = pieceImg[id]; if not img then return end
-        local s = scalePix / img:getWidth()
-        love.graphics.setColor(1,1,1,1)
-        love.graphics.draw(img, x, y, 0, s, s, img:getWidth()/2, img:getHeight()/2)
-      end
-      local cx = px + pw*0.5; local y0 = py + 180; local step = 150
-      _drawPiece("BW", cx - step, y0, 100) -- 青
-      love.graphics.setColor(0,0,0,0.8); love.graphics.printf(">", cx-10, y0-18, 20, "center")
-      _drawPiece("RW", cx,         y0, 100) -- 赤
-      love.graphics.setColor(0,0,0,0.8); love.graphics.printf(">", cx+step-10, y0-18, 20, "center")
-      _drawPiece("GW", cx + step,  y0, 100) -- 緑
+
+      local cx = px + pw*0.5
+      local y0 = py + 180
+
       love.graphics.setColor(1,1,1,1)
+      love.graphics.draw(compati,cx,y0,s,s)
+
+      love.graphics.setColor(0,0,0,1)
       love.graphics.setFont(fonts.ui)
-      local tx = px+24; local ty = py+80; local tw = pw-48
+      local tx, ty, tw = px+24, py+80, pw-48
       love.graphics.printf(
         "青(海)は赤(陽)に勝ち、赤(陽)は緑(地)に勝ち、緑(地)は青(海)に勝ちます。\n" ..
         "同色が隣接すると双方が消滅します。複数マスで同時に解決します。",
@@ -2685,6 +2681,7 @@ function love.load()
   boardW, boardH = board:getWidth(), board:getHeight()
   boarda = love.graphics.newImage(IMG_DIR.."boarda.png")
   boardWa, boardHa = boarda:getWidth(), boarda:getHeight()
+  compati = love.graphics.newImage(IMG_DIR.."compati.png")
   pieceImg["RB"]=love.graphics.newImage(IMG_DIR.."you_black.png")
   pieceImg["RW"]=love.graphics.newImage(IMG_DIR.."you_white.png")
   pieceImg["BB"]=love.graphics.newImage(IMG_DIR.."kai_black.png")
