@@ -1879,7 +1879,7 @@ function menu.enter()
   local ww, hh = love.graphics.getDimensions()
   local bw, bh, gap = 240, 48, 16
   local cx = ww * 0.5
-  local baseY = hh * 0.48
+  local baseY = hh * 0.44
 
   -- 小さな Training トグルの矩形を用意（関数ではなく、矩形そのものを保持）
   menu.trainBtn = { x = 12, y = hh - 26, w = 140, h = 18 }
@@ -1888,7 +1888,8 @@ function menu.enter()
     {label="ルール",         x=cx - bw/2, y=baseY + (bh+gap)*0, w=bw, h=bh, action=function() switchScene("rules") end},
     {label="ローカル対戦",   x=cx - bw/2, y=baseY + (bh+gap)*1, w=bw, h=bh, action=function() switchScene("opt_local")   end},
     {label="vs COM",         x=cx - bw/2, y=baseY + (bh+gap)*2, w=bw, h=bh, action=function() switchScene("opt_com")     end},
-    {label="オンライン対戦", x=cx - bw/2, y=baseY + (bh+gap)*3, w=bw, h=bh, action=function() switchScene("opt_online") end},
+    {label="学習モード",     x=cx - bw/2, y=baseY + (bh+gap)*3, w=bw, h=bh, action=function() ensureLearner(); switchScene("train") end},
+    {label="オンライン対戦", x=cx - bw/2, y=baseY + (bh+gap)*4, w=bw, h=bh, action=function() switchScene("opt_online") end},
   }
 end
 
@@ -1995,6 +1996,7 @@ end
 local train = { startBtn=nil, stopBtn=nil, backBtn=nil }
 
 function train.enter()
+  ensureLearner()
   local ww, hh = love.graphics.getDimensions()
   local bw, bh, gap = 120, 40, 14
   local cx = ww/2
@@ -2055,6 +2057,26 @@ function train.draw()
     local msg = training.active and "Training... (coroutine)" or "Idle"
     love.graphics.setColor(0,0,0,0.75)
     love.graphics.printf(msg, px+40, y, pw-80, "left")
+  
+    y = y + 28
+    local sampleCount = 0
+    if TRAIN.learner and TRAIN.learner.getDatasetSize then
+      sampleCount = TRAIN.learner.getDatasetSize()
+    end
+    love.graphics.setColor(0,0,0,0.75)
+    love.graphics.printf(("Stored samples: %d"):format(sampleCount), px+40, y, pw-80, "left")
+
+    if love.filesystem and TRAIN.learner and TRAIN.learner.getDatasetFile then
+      local saveDir = love.filesystem.getSaveDirectory and love.filesystem.getSaveDirectory()
+      local fileName = TRAIN.learner.getDatasetFile()
+      if saveDir and fileName then
+        love.graphics.setFont(fonts.small)
+        love.graphics.setColor(0,0,0,0.55)
+        love.graphics.printf("Data file: "..saveDir.."/"..fileName, px+40, y+18, pw-80, "left")
+        love.graphics.setFont(fonts.ui)
+      end
+    end
+    love.graphics.setColor(0,0,0,1)
   end)
 
   drawButton(train.startBtn, training.active and "Running..." or "Start", fonts.ui)
@@ -2084,10 +2106,18 @@ function train.mousepressed(x,y,b)
     switchScene("menu"); return
   end
   if b==1 and pointInRect(x,y, train.saveBtn.x,train.saveBtn.y,train.saveBtn.w,train.saveBtn.h) then
-    pcall(function() Eval.save() end); return
+    ensureLearner()
+    if TRAIN.learner and TRAIN.learner.saveAll then
+      pcall(function() TRAIN.learner.saveAll() end)
+    end
+    return
   end
   if b==1 and pointInRect(x,y, train.loadBtn.x,train.loadBtn.y,train.loadBtn.w,train.loadBtn.h) then
-    pcall(function() Eval.load() end); return
+    ensureLearner()
+    if TRAIN.learner and TRAIN.learner.loadAll then
+      pcall(function() TRAIN.learner.loadAll() end)
+    end
+    return
   end
 end
 
@@ -2636,6 +2666,7 @@ makeAI_API = function()
     -- ゲーム状態
     gameIsOver  = function() return gameOver end,
     setGameOver = function(win) gameOver = true; winner = win end,
+    getWinner   = function() return winner end,
     turnSide    = function() return turnSide end,
     opponent    = opponent,
 
@@ -2682,6 +2713,20 @@ makeAI_API = function()
       CURRENT_LAYOUT = LAYOUT
       setBoardOrientation('W')  -- 学習は固定で白先にしておく
       resetGame()
+    end,
+
+    rand = function()
+      if love and love.math and love.math.random then
+        return love.math.random()
+      end
+      return math.random()
+    end,
+
+    randint = function(a,b)
+      if love and love.math and love.math.random then
+        return love.math.random(a,b)
+      end
+      return math.random(a,b)
     end,
   }
 end
@@ -2826,3 +2871,10 @@ function love.draw() dispatch_draw() end
 function love.mousepressed(x,y,b) dispatch_mousepressed(x,y,b) end
 function love.keypressed(k) dispatch_keypressed(k) end
 function love.textinput(t) dispatch_textinput(t) end
+
+function love.quit()
+  training.cancel = true
+  if TRAIN.learner and TRAIN.learner.saveAll then
+    pcall(function() TRAIN.learner.saveAll() end)
+  end
+end
