@@ -21,8 +21,8 @@ local function pick_move(api, eval, side, config)
   local search = Search.make(api, eval)
 
   local diff   = (config and config.difficulty) or "Normal"
-  local depth  = (diff=="Hard") and 3 or (diff=="Easy" and 1 or 2)
-  local budget = (config and config.time_budget) or ((diff=="Hard") and 1.0 or (diff=="Easy" and 0.25 or 0.6))
+  local depth  = (diff=="Hard") and 30 or (diff=="Easy" and 1 or 2)
+  local budget = (config and config.time_budget) or ((diff=="Hard") and 3.0 or (diff=="Easy" and 0.25 or 0.6))
 
   local nowFn = (api and api.getTime) and api.getTime
                 or function() return (love.timer and love.timer.getTime()) or 0 end
