@@ -1171,19 +1171,24 @@ function tryMove(from, toC, toR)
   if gameOver then return false end
   if not canMove(from, toC, toR) then return false end
 
+  local moverSide = turnSide
+  if TRAIN.enabled and TRAIN.learner and TRAIN.learner.recorder and TRAIN.learner.recorder.onMoveBegin then
+    TRAIN.learner.recorder.onMoveBegin(moverSide)
+  end
+
   table.insert(history, snapshot())
 
   local mover = boardState[from.r][from.c]
   boardState[toR][toC] = mover
   boardState[from.r][from.c] = nil
-  restrictions[mover.uid] = { c=from.c, r=from.r, expiresAtMove=turnCount+2, side=turnSide }
+  restrictions[mover.uid] = { c=from.c, r=from.r, expiresAtMove=turnCount+2, side=moverSide }
 
   resolveAdjacency(toC, toR)
 
   selected = nil
   turnCount = turnCount + 1
 
-  local win = checkGameEnd(turnSide)
+  local win = checkGameEnd(moverSide)
   if win then
     gameOver = true
     winner   = win
@@ -1198,7 +1203,11 @@ function tryMove(from, toC, toR)
       end
     end
   else
-    turnSide = opponent(turnSide)
+    turnSide = opponent(moverSide)
+  end
+
+  if TRAIN.enabled and TRAIN.learner and TRAIN.learner.recorder and TRAIN.learner.recorder.onMoveEnd then
+    TRAIN.learner.recorder.onMoveEnd(moverSide, win)
   end
 
   -- ★オンライン時は相手へ通知（受信適用中は送らない）
@@ -2593,7 +2602,13 @@ local function game_com_enter()
   aiThinkTimer = 0
   if TRAIN.enabled then
     ensureLearner()
-    TRAIN.learner.recorder.begin(humanSide, { lr = 0.01 })
+    if gameConfig.difficulty == "Hard" and TRAIN.learner and TRAIN.learner.recorder then
+      TRAIN.learner.recorder.begin(humanSide, { lr = training.lr, gamma = training.gamma })
+    elseif TRAIN.learner and TRAIN.learner.recorder and TRAIN.learner.recorder.stop then
+      TRAIN.learner.recorder.stop()
+    end
+  elseif TRAIN.learner and TRAIN.learner.recorder and TRAIN.learner.recorder.stop then
+    TRAIN.learner.recorder.stop()
   end
 end
 
@@ -2628,11 +2643,6 @@ local function game_com_mousepressed(mx,my,b)
 
   -- 盤入力は人手番のみ
   if turnSide ~= humanSide or gameOver then return end
-
-  -- 人の着手“直前”にスナップ
-  if TRAIN.enabled and TRAIN.learner then
-    TRAIN.learner.recorder.onPreHumanMove()
-  end
 
   -- 一度だけ実際の着手処理
   game_mousepressed(mx,my,b)

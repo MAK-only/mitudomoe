@@ -237,27 +237,78 @@ function Learn.make(api, eval)
   end
 
   -- ====== 人対局からのサンプル採取 ======
+  local function opponentSide(side)
+    if api and api.opponent then return api.opponent(side) end
+    return (side == "B") and "W" or "B"
+  end
+
   local recorder = {
     active = false,
     humanSide = "W",
     traj = {},
-    cfg = { lr = 0.01 },
+    cfg = { lr = 0.01, gamma = 0.99 },
+    pending = nil,
   }
 
   function recorder.begin(humanSide, cfg)
     recorder.active = true
     recorder.humanSide = humanSide or "W"
     recorder.traj = {}
-    recorder.cfg.lr = (cfg and cfg.lr) or recorder.cfg.lr
+    recorder.pending = nil
+    if cfg then
+      recorder.cfg.lr = cfg.lr or recorder.cfg.lr
+      recorder.cfg.gamma = cfg.gamma or recorder.cfg.gamma
+    end
   end
 
-  function recorder.onPreHumanMove()
-    if not recorder.active then return end
-    local _, f = eval.value(recorder.humanSide)
-    recorder.traj[#recorder.traj+1] = {
-      side = recorder.humanSide,
-      features = cloneFeaturesOrdered(f),
+  function recorder.stop()
+    recorder.active = false
+    recorder.pending = nil
+    recorder.traj = {}
+  end
+
+  function recorder.onMoveBegin(side)
+    if not recorder.active or side ~= recorder.humanSide then return end
+    local v, f = eval.value(side)
+    local features = cloneFeaturesOrdered(f)
+    recorder.pending = {
+      side = side,
+      value = v,
+      features = features,
     }
+    recorder.traj[#recorder.traj+1] = {
+      side = side,
+      features = features,
+    }
+  end
+
+  recorder.onPreHumanMove = recorder.onMoveBegin -- backward compat (unused)
+
+  function recorder.onMoveEnd(side, winSide)
+    if not recorder.active or side ~= recorder.humanSide then
+      recorder.pending = nil
+      return
+    end
+    local entry = recorder.pending
+    recorder.pending = nil
+    if not entry then return end
+
+    local reward = 0
+    if winSide == side then
+      reward = 1
+    elseif winSide and winSide == opponentSide(side) then
+      reward = -1
+    end
+
+    local v_sp = 0
+    if reward == 0 then
+      local opp = opponentSide(side)
+      v_sp = -eval.value(opp)
+    end
+
+    local target = reward + (recorder.cfg.gamma or 0.99) * v_sp
+    local td = target - entry.value
+    stepWeights(eval.weights(), entry.features, td, recorder.cfg.lr or 0.01)
   end
 
   function recorder.onGameEnd(winner)
@@ -270,6 +321,7 @@ function Learn.make(api, eval)
       end
       commitSamples(samples, recorder.cfg.lr)
     end
+    recorder.pending = nil
     recorder.active = false
     recorder.traj = {}
   end
