@@ -13,7 +13,7 @@ function Learn.make(api, eval)
     end
   end
 
-    local FEATURE_ORDER = {
+  local FEATURE_ORDER = {
     "piece_count",
     "kind_diff",
     "danger",
@@ -24,7 +24,7 @@ function Learn.make(api, eval)
     "mobility",
   }
   local DATA_FILE = "ai_training_data.txt"
-  local MAX_DATASET = 30000
+  local MAX_DATASET = 100000
 
   local dataset = { samples = {}, dirty = false }
 
@@ -38,7 +38,7 @@ function Learn.make(api, eval)
   end
 
   local function serializeSample(sample)
-    local tokens = { string.format("%.6f", sample.reward or 0) }
+    local tokens = { string.format("%.6f", sample.target or sample.reward or 0) }
     for _,key in ipairs(FEATURE_ORDER) do
       tokens[#tokens+1] = string.format("%.6f", sample.features[key] or 0)
     end
@@ -68,13 +68,13 @@ function Learn.make(api, eval)
           fields[#fields+1] = token
         end
         if #fields == #FEATURE_ORDER + 1 then
-          local reward = tonumber(fields[1])
-          if reward then
+          local target = tonumber(fields[1])
+          if target then
             local feat = {}
             for i,key in ipairs(FEATURE_ORDER) do
               feat[key] = tonumber(fields[i+1]) or 0
             end
-            dataset.samples[#dataset.samples+1] = { reward = reward, features = feat }
+            dataset.samples[#dataset.samples+1] = { target = target, features = feat }
           end
         end
       end
@@ -86,7 +86,7 @@ function Learn.make(api, eval)
   local function saveDataset()
     if not dataset.dirty then return true end
     if not (love and love.filesystem) then return false end
-    local lines = { "# reward\t" .. table.concat(FEATURE_ORDER, "\t") }
+    local lines = { "# target\t" .. table.concat(FEATURE_ORDER, "\t") }
     for _,sample in ipairs(dataset.samples) do
       lines[#lines+1] = serializeSample(sample)
     end
@@ -105,9 +105,12 @@ function Learn.make(api, eval)
     return DATA_FILE
   end
 
-  local function appendSample(reward, features)
-    if not reward or reward == 0 or not features then return nil end
-    local sample = { reward = reward, features = cloneFeaturesOrdered(features) }
+  local function appendSample(target, features)
+    if target == nil or not features then return nil end
+    local sample = {
+      target = target,
+      features = cloneFeaturesOrdered(features),
+    }
     dataset.samples[#dataset.samples+1] = sample
     if #dataset.samples > MAX_DATASET then
       table.remove(dataset.samples, 1)
@@ -124,7 +127,7 @@ function Learn.make(api, eval)
       for k,v in pairs(sample.features) do
         pred = pred + (w[k] or 0) * v
       end
-      local td = sample.reward - pred
+      local td = (sample.target or sample.reward or 0) - pred
       stepWeights(w, sample.features, td, lr)
     end
     eval.setWeights(w)
@@ -136,7 +139,7 @@ function Learn.make(api, eval)
     if not entries or #entries == 0 then return end
     local newSamples = {}
     for _,entry in ipairs(entries) do
-      local sample = appendSample(entry.reward, entry.features)
+      local sample = appendSample(entry.target or entry.reward, entry.features)
       if sample then
         newSamples[#newSamples+1] = sample
       end
@@ -164,28 +167,30 @@ function Learn.make(api, eval)
     if not winSide or not trajectory then return {} end
     local samples = {}
     for _,step in ipairs(trajectory) do
-      local reward = (step.side == winSide) and 1 or -1
-      samples[#samples+1] = { reward = reward, features = step.features }
+      if step.side == winSide and step.target then
+        samples[#samples+1] = { target = step.target, features = step.features }
+      end
     end
     return samples
   end
 
   -- ====== 既存: 自己対戦学習（強化学習＋データ保存） ======
   function selfPlayOnce(cfg)
-    local lr    = cfg.lr or 0.01
-    local gamma = cfg.gamma or 0.99
-    local eps   = cfg.eps or 0.05
-    local maxPlies = cfg.maxPlies or 400
+    local lr    = cfg.lr or 0.005
+    local gamma = cfg.gamma or 0.90
+    local eps   = cfg.eps or 0.1
+    local maxPlies = cfg.maxPlies or 200
 
     if api.resetToInitial then api.resetToInitial() end
 
     local trajectory = {}
     local finalWinner = nil
 
+    local weights = eval.weights()
     for ply = 1, maxPlies do
       local side = api.turnSide()
       local moves = api.listLegalMoves(side)
-     if not moves or #moves == 0 then break end
+      if not moves or #moves == 0 then break end
 
       local move
       if rand01() < eps then
@@ -203,7 +208,12 @@ function Learn.make(api, eval)
       end
 
       local v_s, f_s = eval.value(side)
-      trajectory[#trajectory+1] = { side = side, features = cloneFeaturesOrdered(f_s) }
+      local entry = {
+        side = side,
+        features = cloneFeaturesOrdered(f_s),
+        target = nil,
+      }
+      trajectory[#trajectory+1] = entry
 
       local ok = api.tryMove({ c = move.from.c, r = move.from.r }, move.to.c, move.to.r)
         if not ok then break end
@@ -213,12 +223,15 @@ function Learn.make(api, eval)
         if win then reward = (win == side) and 1 or -1 end
 
         local v_sp = 0
-        if reward == 0 then
-          v_sp = -V(api.opponent(side))
-        end
+      if reward == 0 then
+        v_sp = -V(api.opponent(side))
+      end
 
-        local td = reward + gamma * v_sp - v_s
-        stepWeights(eval.weights(), f_s, td, lr)
+      local target = reward + gamma * v_sp
+      entry.target = target
+
+      local td = target - v_s
+      stepWeights(weights, f_s, td, lr)
 
       if reward ~= 0 then
         finalWinner = win
@@ -232,6 +245,7 @@ function Learn.make(api, eval)
       savedByCommit = true
     end
 
+    eval.setWeights(weights)
     if eval.save and not savedByCommit then pcall(eval.save) end
     saveDataset()
   end
@@ -271,15 +285,14 @@ function Learn.make(api, eval)
     if not recorder.active or side ~= recorder.humanSide then return end
     local v, f = eval.value(side)
     local features = cloneFeaturesOrdered(f)
-    recorder.pending = {
+    local entry = {
       side = side,
       value = v,
       features = features,
+      target = nil,
     }
-    recorder.traj[#recorder.traj+1] = {
-      side = side,
-      features = features,
-    }
+    recorder.pending = entry
+    recorder.traj[#recorder.traj+1] = entry
   end
 
   recorder.onPreHumanMove = recorder.onMoveBegin -- backward compat (unused)
@@ -307,19 +320,23 @@ function Learn.make(api, eval)
     end
 
     local target = reward + (recorder.cfg.gamma or 0.99) * v_sp
+    entry.target = target
     local td = target - entry.value
     stepWeights(eval.weights(), entry.features, td, recorder.cfg.lr or 0.01)
   end
 
   function recorder.onGameEnd(winner)
     if not recorder.active then return end
-    local reward = (winner == recorder.humanSide) and 1 or (winner and -1 or 0)
-    if reward ~= 0 and #recorder.traj > 0 then
+    if #recorder.traj > 0 then
       local samples = {}
       for _,step in ipairs(recorder.traj) do
-        samples[#samples+1] = { reward = reward, features = step.features }
+        if step.target then
+          samples[#samples+1] = { target = step.target, features = step.features }
+        end
       end
-      commitSamples(samples, recorder.cfg.lr)
+      if #samples > 0 then
+        commitSamples(samples, recorder.cfg.lr)
+      end
     end
     recorder.pending = nil
     recorder.active = false
