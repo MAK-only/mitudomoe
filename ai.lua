@@ -21,7 +21,7 @@ local function pick_move(api, eval, side, config)
   local search = Search.make(api, eval)
 
   local diff   = (config and config.difficulty) or "Normal"
-  local depth  = (diff=="Hard") and 30 or (diff=="Easy" and 1 or 2)
+  local depth  = (diff=="Hard") and 50 or (diff=="Easy" and 1 or 2)
   local budget = (config and config.time_budget) or ((diff=="Hard") and 3.0 or (diff=="Easy" and 0.25 or 0.6))
 
   local nowFn = (api and api.getTime) and api.getTime
@@ -51,10 +51,10 @@ function M.trainOneGame(api, cfg)
     local learner = Learn.make(api, eval)
     if learner and learner.selfplay then
       learner.selfplay({
-        lr       = cfg.lr or 0.01,
+        lr       = cfg.lr or 0.05,
         eps      = cfg.eps or 0.05,
         gamma    = cfg.gamma or 0.99,
-        maxPlies = cfg.maxPlies or 300,
+        maxPlies = cfg.maxPlies or 1000,
       })
       return
     end
