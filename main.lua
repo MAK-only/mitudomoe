@@ -1596,7 +1596,9 @@ local function game_draw()
   if logo then
     local lw, lh = logo:getWidth(), logo:getHeight()
     local s = math.min( tw/lw, (winH*0.14)/lh )
-    love.graphics.setColor(0,0,0,1); love.graphics.draw(logo, tx, ycur, 0, s, s)
+    love.graphics.setColor(1,1,1,1)
+    love.graphics.draw(logo, tx, ycur, 0, s, s)
+    love.graphics.setColor(0,0,0,1)
     ycur = ycur + lh*s + 10
   end
 
@@ -1897,8 +1899,8 @@ function menu.enter()
     {label="ルール",         x=cx - bw/2, y=baseY + (bh+gap)*0, w=bw, h=bh, action=function() switchScene("rules") end},
     {label="ローカル対戦",   x=cx - bw/2, y=baseY + (bh+gap)*1, w=bw, h=bh, action=function() switchScene("opt_local")   end},
     {label="vs COM",         x=cx - bw/2, y=baseY + (bh+gap)*2, w=bw, h=bh, action=function() switchScene("opt_com")     end},
-    {label="学習モード",     x=cx - bw/2, y=baseY + (bh+gap)*3, w=bw, h=bh, action=function() ensureLearner(); switchScene("train") end},
-    {label="オンライン対戦", x=cx - bw/2, y=baseY + (bh+gap)*4, w=bw, h=bh, action=function() switchScene("opt_online") end},
+    -- {label="学習モード",     x=cx - bw/2, y=baseY + (bh+gap)*3, w=bw, h=bh, action=function() ensureLearner(); switchScene("train") end},
+    {label="オンライン対戦", x=cx - bw/2, y=baseY + (bh+gap)*3, w=bw, h=bh, action=function() switchScene("opt_online") end},
   }
 end
 
@@ -1922,8 +1924,9 @@ function menu.draw()
     local s = math.min((ww*0.5)/lw, (hh*0.14)/lh)
     local x = (ww - lw*s)/2
     local y = hh*0.24 - (lh*s)/2
-    love.graphics.setColor(0,0,0,1)
+    love.graphics.setColor(1,1,1,1)
     love.graphics.draw(logo, x, y, 0, s, s)
+    love.graphics.setColor(0,0,0,1)
   else
     love.graphics.setColor(0,0,0,1)
     love.graphics.setFont(fonts.title); love.graphics.printf("三ツ巴", 0, hh*0.24-18, ww, "center")
@@ -1939,17 +1942,17 @@ function menu.draw()
   love.graphics.printf("© 2025 M.A.K / MITUDOMOE. All Rights Reserved.", 0, hh-22, ww, "center")
   love.graphics.setColor(1,1,1,1)
 
-  do
-    local b = menu.trainBtn
-    local t = TRAIN.enabled and "ON" or "OFF"
-    love.graphics.setColor(0,0,0,0.18)
-    love.graphics.rectangle("fill", b.x,b.y,b.w,b.h, 8,8)
-    love.graphics.setColor(0,0,0,0.55)
-    love.graphics.rectangle("line", b.x,b.y,b.w,b.h, 8,8)
-    love.graphics.setFont(fonts.small)
-    love.graphics.printf("Training : "..t, b.x, b.y+2, b.w, "center")
-    love.graphics.setColor(1,1,1,1)
-  end
+  -- do
+  --   local b = menu.trainBtn
+  --   local t = TRAIN.enabled and "ON" or "OFF"
+  --   love.graphics.setColor(0,0,0,0.18)
+  --   love.graphics.rectangle("fill", b.x,b.y,b.w,b.h, 8,8)
+  --   love.graphics.setColor(0,0,0,0.55)
+  --   love.graphics.rectangle("line", b.x,b.y,b.w,b.h, 8,8)
+  --   love.graphics.setFont(fonts.small)
+  --   love.graphics.printf("Training : "..t, b.x, b.y+2, b.w, "center")
+  --   love.graphics.setColor(1,1,1,1)
+  -- end
 end
 
 function menu.mousepressed(x,y,b)
@@ -1982,7 +1985,9 @@ local function drawOptionPanel(title, contentFn)
     local s = math.min((ww*0.35)/lw, (hh*0.10)/lh)
     local x = (ww - lw*s)/2
     local y = hh*0.10 - (lh*s)/2
-    love.graphics.setColor(0,0,0,1); love.graphics.draw(logo, x, y, 0, s, s)
+    love.graphics.setColor(1,1,1,1)
+    love.graphics.draw(logo, x, y, 0, s, s)
+    love.graphics.setColor(0,0,0,1)
   end
 
   local pw = math.min(UI.panelW, ww*0.86)
@@ -2002,139 +2007,139 @@ end
 
 --↓後で消す
 -- ===== Training scene =====
-local train = { startBtn=nil, stopBtn=nil, backBtn=nil }
+-- local train = { startBtn=nil, stopBtn=nil, backBtn=nil }
 
-function train.enter()
-  ensureLearner()
-  local ww, hh = love.graphics.getDimensions()
-  local bw, bh, gap = 120, 40, 14
-  local cx = ww/2
-  local baseY = hh*0.68
-  train.startBtn = { x=cx - bw - gap/2, y=baseY, w=bw, h=bh }
-  train.stopBtn  = { x=cx + gap/2,      y=baseY, w=bw, h=bh }
-  train.backBtn  = { x=cx - bw/2,       y=baseY + bh + gap, w=bw, h=bh }
-  train.saveBtn = { x=cx - 260, y=baseY - (bh + gap), w=120, h=bh }
-  train.loadBtn = { x=cx + 140, y=baseY - (bh + gap), w=120, h=bh }
-end
+-- function train.enter()
+--   ensureLearner()
+--   local ww, hh = love.graphics.getDimensions()
+--   local bw, bh, gap = 120, 40, 14
+--   local cx = ww/2
+--   local baseY = hh*0.68
+--   train.startBtn = { x=cx - bw - gap/2, y=baseY, w=bw, h=bh }
+--   train.stopBtn  = { x=cx + gap/2,      y=baseY, w=bw, h=bh }
+--   train.backBtn  = { x=cx - bw/2,       y=baseY + bh + gap, w=bw, h=bh }
+--   train.saveBtn = { x=cx - 260, y=baseY - (bh + gap), w=120, h=bh }
+--   train.loadBtn = { x=cx + 140, y=baseY - (bh + gap), w=120, h=bh }
+-- end
 
-function train.update(dt) end
+-- function train.update(dt) end
 
-local function _kv(x,y,key,fmt,inc)
-  -- 小さな +/- で数値をいじるヘルパ
-  local w,h = 180, 32
-  love.graphics.setColor(0,0,0,1)
-  love.graphics.print(key, x, y)
-  local bx = x + 160
-  love.graphics.setColor(0.95,0.95,0.95,1)
-  love.graphics.rectangle("fill", bx, y-4, w, h, 8,8)
-  love.graphics.setColor(0,0,0,1)
-  love.graphics.rectangle("line", bx, y-4, w, h, 8,8)
-  love.graphics.printf(string.format(fmt, inc()), bx, y-2, w, "center")
-  return {x=bx, y=y-4, w=w, h=h}
-end
+-- local function _kv(x,y,key,fmt,inc)
+--   -- 小さな +/- で数値をいじるヘルパ
+--   local w,h = 180, 32
+--   love.graphics.setColor(0,0,0,1)
+--   love.graphics.print(key, x, y)
+--   local bx = x + 160
+--   love.graphics.setColor(0.95,0.95,0.95,1)
+--   love.graphics.rectangle("fill", bx, y-4, w, h, 8,8)
+--   love.graphics.setColor(0,0,0,1)
+--   love.graphics.rectangle("line", bx, y-4, w, h, 8,8)
+--   love.graphics.printf(string.format(fmt, inc()), bx, y-2, w, "center")
+--   return {x=bx, y=y-4, w=w, h=h}
+-- end
 
-function train.draw()
-  drawOptionPanel("Training", function(px,py,pw,ph)
-    local x = px + 40
-    local y = py + 88
-    love.graphics.setColor(0,0,0,1)
-    love.graphics.setFont(fonts.ui)
+-- function train.draw()
+--   drawOptionPanel("Training", function(px,py,pw,ph)
+--     local x = px + 40
+--     local y = py + 88
+--     love.graphics.setColor(0,0,0,1)
+--     love.graphics.setFont(fonts.ui)
 
-    -- パラメータ表示
-    local fields = {}
+--     -- パラメータ表示
+--     local fields = {}
 
-    fields.total = _kv(x,y, "Games", "%d", function() return training.total end);        y=y+40
-    fields.eps   = _kv(x,y, "Epsilon", "%.3f", function() return training.eps end);      y=y+40
-    fields.lr    = _kv(x,y, "LR", "%.3f", function() return training.lr end);            y=y+40
-    fields.gamma = _kv(x,y, "Gamma", "%.2f", function() return training.gamma end);      y=y+40
-    fields.maxp  = _kv(x,y, "Max plies", "%d", function() return training.maxPlies end); y=y+40
+--     fields.total = _kv(x,y, "Games", "%d", function() return training.total end);        y=y+40
+--     fields.eps   = _kv(x,y, "Epsilon", "%.3f", function() return training.eps end);      y=y+40
+--     fields.lr    = _kv(x,y, "LR", "%.3f", function() return training.lr end);            y=y+40
+--     fields.gamma = _kv(x,y, "Gamma", "%.2f", function() return training.gamma end);      y=y+40
+--     fields.maxp  = _kv(x,y, "Max plies", "%d", function() return training.maxPlies end); y=y+40
 
-    -- 進捗
-    y = y + 10
-    local done, total = training.done, training.total
-    local ratio = (total>0) and (done/total) or 0
-    local barW, barH = pw-80, 18
-    love.graphics.setColor(0,0,0,0.25)
-    love.graphics.rectangle("fill", px+40, y, barW, barH, 8,8)
-    love.graphics.setColor(0.2,0.6,0.2, 0.9)
-    love.graphics.rectangle("fill", px+40, y, barW*ratio, barH, 8,8)
-    love.graphics.setColor(0,0,0,0.8)
-    love.graphics.printf(("%d / %d"):format(done,total), px+40, y-2, barW, "center")
+--     -- 進捗
+--     y = y + 10
+--     local done, total = training.done, training.total
+--     local ratio = (total>0) and (done/total) or 0
+--     local barW, barH = pw-80, 18
+--     love.graphics.setColor(0,0,0,0.25)
+--     love.graphics.rectangle("fill", px+40, y, barW, barH, 8,8)
+--     love.graphics.setColor(0.2,0.6,0.2, 0.9)
+--     love.graphics.rectangle("fill", px+40, y, barW*ratio, barH, 8,8)
+--     love.graphics.setColor(0,0,0,0.8)
+--     love.graphics.printf(("%d / %d"):format(done,total), px+40, y-2, barW, "center")
 
-    -- 状態
-    y = y + 34
-    local msg = training.active and "Training... (coroutine)" or "Idle"
-    love.graphics.setColor(0,0,0,0.75)
-    love.graphics.printf(msg, px+40, y, pw-80, "left")
+--     -- 状態
+--     y = y + 34
+--     local msg = training.active and "Training... (coroutine)" or "Idle"
+--     love.graphics.setColor(0,0,0,0.75)
+--     love.graphics.printf(msg, px+40, y, pw-80, "left")
   
-    y = y + 28
-    local sampleCount = 0
-    if TRAIN.learner and TRAIN.learner.getDatasetSize then
-      sampleCount = TRAIN.learner.getDatasetSize()
-    end
-    love.graphics.setColor(0,0,0,0.75)
-    love.graphics.printf(("Stored samples: %d"):format(sampleCount), px+40, y, pw-80, "left")
+--     y = y + 28
+--     local sampleCount = 0
+--     if TRAIN.learner and TRAIN.learner.getDatasetSize then
+--       sampleCount = TRAIN.learner.getDatasetSize()
+--     end
+--     love.graphics.setColor(0,0,0,0.75)
+--     love.graphics.printf(("Stored samples: %d"):format(sampleCount), px+40, y, pw-80, "left")
 
-    if love.filesystem and TRAIN.learner and TRAIN.learner.getDatasetFile then
-      local saveDir = love.filesystem.getSaveDirectory and love.filesystem.getSaveDirectory()
-      local fileName = TRAIN.learner.getDatasetFile()
-      if saveDir and fileName then
-        love.graphics.setFont(fonts.small)
-        love.graphics.setColor(0,0,0,0.55)
-        love.graphics.printf("Data file: "..saveDir.."/"..fileName, px+40, y+18, pw-80, "left")
-        love.graphics.setFont(fonts.ui)
-      end
-    end
-    love.graphics.setColor(0,0,0,1)
-  end)
+--     if love.filesystem and TRAIN.learner and TRAIN.learner.getDatasetFile then
+--       local saveDir = love.filesystem.getSaveDirectory and love.filesystem.getSaveDirectory()
+--       local fileName = TRAIN.learner.getDatasetFile()
+--       if saveDir and fileName then
+--         love.graphics.setFont(fonts.small)
+--         love.graphics.setColor(0,0,0,0.55)
+--         love.graphics.printf("Data file: "..saveDir.."/"..fileName, px+40, y+18, pw-80, "left")
+--         love.graphics.setFont(fonts.ui)
+--       end
+--     end
+--     love.graphics.setColor(0,0,0,1)
+--   end)
 
-  drawButton(train.startBtn, training.active and "Running..." or "Start", fonts.ui)
-  drawButton(train.stopBtn,  "Stop", fonts.ui)
-  drawButton(train.backBtn,  "Back", fonts.ui)
-  drawButton(train.saveBtn, "Save", fonts.ui)
-  drawButton(train.loadBtn, "Load", fonts.ui)
+--   drawButton(train.startBtn, training.active and "Running..." or "Start", fonts.ui)
+--   drawButton(train.stopBtn,  "Stop", fonts.ui)
+--   drawButton(train.backBtn,  "Back", fonts.ui)
+--   drawButton(train.saveBtn, "Save", fonts.ui)
+--   drawButton(train.loadBtn, "Load", fonts.ui)
 
-  -- 薄い注意書き（右下）
-  local ww,hh = love.graphics.getDimensions()
-  love.graphics.setFont(fonts.small)
-  love.graphics.setColor(0,0,0,0.55)
-  love.graphics.printf("Learning updates weights used by Hard.", 0, hh-24, ww, "right")
-  love.graphics.setColor(1,1,1,1)
-end
+--   -- 薄い注意書き（右下）
+--   local ww,hh = love.graphics.getDimensions()
+--   love.graphics.setFont(fonts.small)
+--   love.graphics.setColor(0,0,0,0.55)
+--   love.graphics.printf("Learning updates weights used by Hard.", 0, hh-24, ww, "right")
+--   love.graphics.setColor(1,1,1,1)
+-- end
 
-function train.mousepressed(x,y,b)
-  if b~=1 then return end
-  if pointInRect(x,y, train.startBtn.x,train.startBtn.y,train.startBtn.w,train.startBtn.h) then
-    if not training.active then startTraining() end
-    return
-  end
-  if pointInRect(x,y, train.stopBtn.x,train.stopBtn.y,train.stopBtn.w,train.stopBtn.h) then
-    stopTraining(); return
-  end
-  if pointInRect(x,y, train.backBtn.x,train.backBtn.y,train.backBtn.w,train.backBtn.h) then
-    switchScene("menu"); return
-  end
-  if b==1 and pointInRect(x,y, train.saveBtn.x,train.saveBtn.y,train.saveBtn.w,train.saveBtn.h) then
-    ensureLearner()
-    if TRAIN.learner and TRAIN.learner.saveAll then
-      pcall(function() TRAIN.learner.saveAll() end)
-    end
-    return
-  end
-  if b==1 and pointInRect(x,y, train.loadBtn.x,train.loadBtn.y,train.loadBtn.w,train.loadBtn.h) then
-    ensureLearner()
-    if TRAIN.learner and TRAIN.learner.loadAll then
-      pcall(function() TRAIN.learner.loadAll() end)
-    end
-    return
-  end
-end
+-- function train.mousepressed(x,y,b)
+--   if b~=1 then return end
+--   if pointInRect(x,y, train.startBtn.x,train.startBtn.y,train.startBtn.w,train.startBtn.h) then
+--     if not training.active then startTraining() end
+--     return
+--   end
+--   if pointInRect(x,y, train.stopBtn.x,train.stopBtn.y,train.stopBtn.w,train.stopBtn.h) then
+--     stopTraining(); return
+--   end
+--   if pointInRect(x,y, train.backBtn.x,train.backBtn.y,train.backBtn.w,train.backBtn.h) then
+--     switchScene("menu"); return
+--   end
+--   if b==1 and pointInRect(x,y, train.saveBtn.x,train.saveBtn.y,train.saveBtn.w,train.saveBtn.h) then
+--     ensureLearner()
+--     if TRAIN.learner and TRAIN.learner.saveAll then
+--       pcall(function() TRAIN.learner.saveAll() end)
+--     end
+--     return
+--   end
+--   if b==1 and pointInRect(x,y, train.loadBtn.x,train.loadBtn.y,train.loadBtn.w,train.loadBtn.h) then
+--     ensureLearner()
+--     if TRAIN.learner and TRAIN.learner.loadAll then
+--       pcall(function() TRAIN.learner.loadAll() end)
+--     end
+--     return
+--   end
+-- end
 
-function train.keypressed(k)
-  if k=="escape" then switchScene("menu") end
-end
+-- function train.keypressed(k)
+--   if k=="escape" then switchScene("menu") end
+-- end
 
-scenes.train = train
+-- scenes.train = train
 -- ===== /Training scene =====
 
 -- ===== Rules scene =====
@@ -2157,7 +2162,9 @@ local function _makeRulesPages()
         "白と黒の駒が世界の存亡を賭けて\n" ..
         "ぶつかり合います。\n" ..
         "手前側があなたの駒。\n" ..
-        "プレイヤーは交互に自分の駒を1つ、上下左右のいずれかに\n" ..
+        "白が先手、黒が後手となり、\n" ..
+        "プレイヤーは交互に自分の駒を\n"..
+        "1つ、上下左右のいずれかに\n" ..
         "1歩ずつ進めていきます。"
       love.graphics.printf(text, tx, ty, tw*0.45, "left")
 
@@ -2184,8 +2191,8 @@ local function _makeRulesPages()
 
       -- 説明文（先に高さだけ計算しておく）
       local text = 
-        "陽(赤)、地(緑)、海(青)の3つの駒があなたの世界を形作っています。\n" ..
-        "陽、地、海各4個、計12個があなたの駒です。\n" ..
+        "陽(赤)/地(緑)/海(青)の3つの駒があなたの世界を形作っています。\n" ..
+        "陽/地/海各4個、計12個があなたの駒です。\n" ..
         "陽は地に強く、地は海に強く、海は陽に強い。\n" ..
         "相手の駒と隣り合った時、違う色ならば不利な駒が、同じ色なら両方が消滅します。"
       love.graphics.setFont(fonts.ui)
@@ -2234,7 +2241,7 @@ local function _makeRulesPages()
         "以下の状態になると世界の均衡が崩壊し、敗北します。\n" ..
         "・残り駒数が3つ以下になる\n" ..
         "・駒が2色以下になる\n" ..
-        "・引き分けになる一手を差す",
+        "・引き分けになる一手を指す",
         tx, ty, tw, "left"
       )
       love.graphics.setFont(fonts.title); love.graphics.setColor(0,0,0,1)
@@ -2776,6 +2783,7 @@ function love.load()
   boarda = love.graphics.newImage(IMG_DIR.."boarda.png")
   boardWa, boardHa = boarda:getWidth(), boarda:getHeight()
   compati = love.graphics.newImage(IMG_DIR.."compati.png")
+  logo    = love.graphics.newImage(IMG_DIR.."logo.png")
   pieceImg["RB"]=love.graphics.newImage(IMG_DIR.."you_black.png")
   pieceImg["RW"]=love.graphics.newImage(IMG_DIR.."you_white.png")
   pieceImg["BB"]=love.graphics.newImage(IMG_DIR.."kai_black.png")
