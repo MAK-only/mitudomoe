@@ -2762,60 +2762,6 @@ scenes.game_local = {
   mousepressed = function(x,y,b) game_mousepressed(x,y,b) end,
   keypressed   = function(k)     game_keypressed(k)       end,
 }
--- 入力: fr={r=?,c=?}, to={r=?,c=?}, side='white'|'black'
-local function applyMove(fr, to, side)
-  local piece = Game.board[fr.r][fr.c]
-  local pid   = Game.ids[fr.r][fr.c]
-
-  -- 移動
-  Game.board[fr.r][fr.c] = 0; Game.ids[fr.r][fr.c] = 0
-  Game.board[to.r][to.c] = piece; Game.ids[to.r][to.c] = pid
-
-  -- 同時判定（敵のみ）
-  local function isEmpty(v) return v==0 or v=='.' or v=='0' end
-  local function isW(v) return type(v)=='string' and v:match('[RGB]') end
-  local function isB(v) return type(v)=='string' and v:match('[rgb]') end
-  local function col(v) return (type(v)=='string') and string.upper(v) or nil end
-  local function dom(a,b) return (a=='B' and b=='R') or (a=='R' and b=='G') or (a=='G' and b=='B') end
-  local dirs = {{-1,0},{1,0},{0,-1},{0,1}}
-  local removed = {}
-  local myIsWhite = (side=='white')
-  local mycol = col(piece)
-  local function inb(r,c) return r>=1 and r<=8 and c>=1 and c<=8 end
-  for _,d in ipairs(dirs) do
-    local r,c = to.r+d[1], to.c+d[2]
-    if enemy then
-      local ecol = col(v)
-        if mycol == ecol then
-          removed[(r-1)*8 + c] = true
-          removed[(to.r-1)*8 + to.c] = true
-        else
-        if dom(mycol, ecol) then
-          removed[(r-1)*8 + c] = true
-        else
-          removed[(to.r-1)*8 + to.c] = true
-        end
-      end
-    end
-  end
-  for k,_ in pairs(removed) do
-    local r = math.floor((k-1)/8) + 1
-    local c = ((k-1) % 8) + 1
-    Game.board[r][c] = 0
-    Game.ids[r][c] = 0
-  end
-
-  -- 直前手の記録
-  local rec = {id=pid, from={r=fr.r,c=fr.c}, to={r=to.r,c=to.c}}
-  if side=='white' then Game.last_move_white = rec else Game.last_move_black = rec end
-end
-
--- 例: AIの手番時
-local mv, info = AI.chooseMove(Game, Game.side_to_move)
-applyMove(mv.fr, mv.to, Game.side_to_move)
--- 手番交代
-Game.side_to_move = (Game.side_to_move=='white') and 'black' or 'white'
-
 -- ===== LÖVE callbacks & boot =====
 function love.load()
   love.graphics.setDefaultFilter("nearest", "nearest", 1)
@@ -2857,14 +2803,6 @@ function love.load()
     if ok then print("[eval] weights loaded") end
   end)
 end
-
--- === piece IDs & last-move ===
-Game.ids = {}
-local _id = 1
-for r=1,8 do Game.ids[r] = {}; for c=1,8 do
-  if Game.board[r][c] ~= 0 then Game.ids[r][c] = _id; _id = _id + 1 else Game.ids[r][c] = 0 end
-end end
-Game.last_move_white, Game.last_move_black = nil, nil
 
 -- ===== GAME online scene =====
 scenes.game_online = {
