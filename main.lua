@@ -293,11 +293,39 @@ local function drawChamferedRect(mode, x, y, w, h, c)
   )
 end
 
+local function drawDoubleBorderRect(x, y, w, h, radius, opts)
+  opts = opts or {}
+  local fillColor = opts.fillColor or {1,1,1,1}
+  local outerColor = opts.outerColor or {0,0,0,1}
+  local innerColor = opts.innerColor or outerColor
+  local outerWidth = opts.outerWidth or 3
+  local innerWidth = opts.innerWidth or 1.5
+  local inset = opts.inset or 4
+  local innerRadius = math.max(0, (radius or 0) - inset)
+  local prevLineWidth = love.graphics.getLineWidth()
+
+  love.graphics.setColor(fillColor[1], fillColor[2], fillColor[3], fillColor[4] or 1)
+  love.graphics.rectangle("fill", x, y, w, h, radius, radius)
+
+  love.graphics.setLineWidth(outerWidth)
+  love.graphics.setColor(outerColor[1], outerColor[2], outerColor[3], outerColor[4] or 1)
+  love.graphics.rectangle("line", x, y, w, h, radius, radius)
+
+  if w > inset * 2 and h > inset * 2 then
+    love.graphics.setLineWidth(innerWidth)
+    love.graphics.setColor(innerColor[1], innerColor[2], innerColor[3], innerColor[4] or 1)
+    love.graphics.rectangle("line", x + inset, y + inset, w - inset * 2, h - inset * 2,
+      innerRadius, innerRadius)
+  end
+
+  if prevLineWidth then love.graphics.setLineWidth(prevLineWidth) end
+end
+
 local function drawButton(btn, label, font, opts)
   font = font or fonts.button or fonts.ui or love.graphics.getFont()
   opts = opts or {}
   local fh = font:getHeight()
-  local ascent = font.getAscent and font:getAscent() or fh
+   local ascent = font.getAscent and font:getAscent() or fh
   local descent = font.getDescent and font:getDescent() or 0
   descent = math.abs(descent)
   local textHeight = ascent + descent
@@ -1742,10 +1770,8 @@ local function game_draw()
     love.graphics.setColor(0,0,0,0.5)
     love.graphics.rectangle("fill", 0,0, winW,winH)
     local M = layoutResetModal()
-    love.graphics.setColor(1,1,1,1)
-    love.graphics.rectangle("fill", M.mx,M.my, M.mw,M.mh, 12,12)
+    drawDoubleBorderRect(M.mx, M.my, M.mw, M.mh, 12)
     love.graphics.setColor(0,0,0,1)
-    love.graphics.rectangle("line", M.mx,M.my, M.mw,M.mh, 12,12)
     love.graphics.setFont(fonts.ui)
     local xText = M.mx + M.pad
     local yText = M.my + M.pad
@@ -1760,10 +1786,8 @@ local function game_draw()
     love.graphics.setColor(0,0,0,0.5)
     love.graphics.rectangle("fill", 0,0, winW,winH)
     local M = layoutGoTitleModal()
-    love.graphics.setColor(1,1,1,1)
-    love.graphics.rectangle("fill", M.mx,M.my, M.mw,M.mh, 12,12)
+    drawDoubleBorderRect(M.mx, M.my, M.mw, M.mh, 12)
     love.graphics.setColor(0,0,0,1)
-    love.graphics.rectangle("line", M.mx,M.my, M.mw,M.mh, 12,12)
     love.graphics.setFont(fonts.ui)
     local xText = M.mx + M.pad
     local yText = M.my + M.pad
@@ -1938,8 +1962,7 @@ local function drawSimpleModal(text)
   local mw, mh = 560, 200
   local mx, my = (ww-mw)/2, (hh-mh)/2
   love.graphics.setColor(0,0,0,0.5); love.graphics.rectangle("fill", 0,0, ww,hh)
-  love.graphics.setColor(1,1,1,1);   love.graphics.rectangle("fill", mx,my, mw,mh, 12,12)
-  love.graphics.setColor(0,0,0,1);   love.graphics.rectangle("line", mx,my, mw,mh, 12,12)
+    drawDoubleBorderRect(M.mx, M.my, M.mw, M.mh, 12)
   love.graphics.printf(text, mx+16, my+24, mw-32, "left")
 end
 
@@ -2024,9 +2047,8 @@ local function drawOptionPanel(title, contentFn)
   local contentPy = py + UI.panelContentOffset
   local contentPh = math.max(0, ph - UI.panelContentOffset)
 
-  love.graphics.setColor(0.98,0.98,0.98,1); love.graphics.rectangle("fill", px,py, pw,ph, 12,12)
-  love.graphics.setColor(0,0,0,1); love.graphics.rectangle("line", px,py, pw,ph, 12,12)
-
+  drawDoubleBorderRect(px, py, pw, ph, 12, { fillColor = {0.98,0.98,0.98,1} })
+  
   love.graphics.setFont(fonts.title)
   love.graphics.printf(title, px, contentPy+10, pw, "center")
   love.graphics.setFont(fonts.ui)
