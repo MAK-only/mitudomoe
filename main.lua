@@ -91,9 +91,9 @@ local FONTS_DIR = "fonts/"
 local fonts = { ui=nil, title=nil, small=nil, button=nil, menuButton=nil }
 local function loadFonts()
   local ok
-  ok, fonts.ui    = pcall(love.graphics.newFont, FONTS_DIR.."NotoSansJP-Regular.ttf", 18)
-  ok, fonts.title = pcall(love.graphics.newFont, FONTS_DIR.."NotoSansJP-Bold.ttf",    36)
-  ok, fonts.small = pcall(love.graphics.newFont, FONTS_DIR.."NotoSansJP-Regular.ttf", 14)
+  ok, fonts.ui    = pcall(love.graphics.newFont, FONTS_DIR.."Boku2-Regular.otf", 18)
+  ok, fonts.title = pcall(love.graphics.newFont, FONTS_DIR.."03スマートフォントUI.otf", 36)
+  ok, fonts.small = pcall(love.graphics.newFont, FONTS_DIR.."Boku2-Regular.otf", 14)
   ok, fonts.button = pcall(love.graphics.newFont, FONTS_DIR.."TokuLaboV2.otf", 18)
   ok, fonts.menuButton = pcall(love.graphics.newFont, FONTS_DIR.."TokuLaboV2.otf", 20)
   if not fonts.ui    then fonts.ui    = love.graphics.newFont(18) end
@@ -1635,6 +1635,7 @@ local function game_draw()
   end
 
   love.graphics.setColor(0,0,0,1)
+  love.graphics.setFont(fonts.button or fonts.ui or love.graphics.getFont())
   local turnTxt = (turnSide=="B") and "Black" or "White"
   love.graphics.print(("Turn: %s"):format(turnTxt), tx, ycur); ycur = ycur + 20
   love.graphics.print(("Moves: %d"):format(turnCount), tx, ycur); ycur = ycur + 20
@@ -2314,10 +2315,6 @@ function rules.draw()
   local page = rules.pages[rules.page]
   if page and page.draw then page.draw(mx+20, my+16, mw-40, mh-90) end
 
-  -- ページインジケータ
-  love.graphics.setColor(0,0,0,0.7)
-  love.graphics.printf(("<%d/%d>"):format(rules.page, #rules.pages), mx, my+mh-62, mw, "center")
-
   -- ボタン
   drawButton(rules.prevBtn, "＜", fonts.button, { disabled = rules.page<=1 })
   drawButton(rules.closeBtn, "Close", fonts.button)
@@ -2353,7 +2350,7 @@ function opt_local.enter()
   opt_local.backBtn  = { x=ww*0.5 + 10,      y=y, w=bw, h=bh }
 end
 function opt_local.draw()
-  drawOptionPanel("ローカル対戦の設定", function(px,py,pw,ph)
+  drawOptionPanel("ローカル対戦", function(px,py,pw,ph)
     love.graphics.setColor(0,0,0,1)
     love.graphics.printf("オプションはありません。そのまま開始できます。", px+20, py+80, pw-40, "left")
   end)
@@ -2385,9 +2382,9 @@ function opt_com.enter()
 end
 
 function opt_com.draw()
-  drawOptionPanel("vs COM の設定", function(px,py,pw,ph)
+  drawOptionPanel("vsCOM", function(px,py,pw,ph)
     local x = px + 36
-    local y = py + 80
+    local y = py + 85
     love.graphics.setFont(fonts.ui)
     love.graphics.setColor(0,0,0,1)
 
@@ -2402,7 +2399,7 @@ function opt_com.draw()
     y = y + lineH + 24   -- ここは少し詰める
 
     -- 難易度（ラジオ3択・横間隔はタイト）
-    love.graphics.printf("COMの強さ（表示のみ）", x, y, pw - 72, "left")
+    love.graphics.printf("COMの強さ", x, y, pw - 72, "left")
     y = y + UI.controlGap
     local baseY = y + 22
     local d1 = drawRadio(x,                           baseY, "Easy",   opt_com.diffIdx==1)
@@ -2468,7 +2465,7 @@ function opt_online.enter()
 end
 
 function opt_online.draw()
-  drawOptionPanel("オンライン対戦の設定", function(px,py,pw,ph)
+  drawOptionPanel("オンライン対戦", function(px,py,pw,ph)
     local x = px + 36
     local y = py + 80
     love.graphics.setFont(fonts.ui)
