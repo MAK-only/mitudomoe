@@ -250,9 +250,9 @@ local TEXT_MAX_W = 360
 local TEXT_RATIO = 0.2
 
 -- 左下ボタン（実座標は動的）
-local undoBtn  = { x = 0, y = 0, w = 84, h = 28 }
-local resetBtn = { x = 0, y = 0, w = 84, h = 28 }
-local goTitleBtn= { x = 0, y = 0, w = 84, h = 28 }
+local undoBtn  = { x = 0, y = 0, w = 84, h = 28, chamfer = 5 }
+local resetBtn = { x = 0, y = 0, w = 84, h = 28, chamfer = 5 }
+local goTitleBtn= { x = 0, y = 0, w = 84, h = 28, chamfer = 5 }
 local WIN_MSG_OFFSET = 30
 
 -- 消滅エフェクト設定
@@ -277,15 +277,40 @@ local function pointInRect(x,y,rx,ry,rw,rh) return x>=rx and x<=rx+rw and y>=ry 
 
 -- ボタン描画（縦センタリング）
 local BUTTON_LABEL_TWEAK = -2
-local function drawButton(btn, label, font)
+local function drawChamferedRect(mode, x, y, w, h, c)
+  love.graphics.polygon(mode,
+    x + c, y,
+    x + w - c, y,
+    x + w, y + c,
+    x + w, y + h - c,
+    x + w - c, y + h,
+    x + c, y + h,
+    x, y + h - c,
+    x, y + c
+  )
+end
+
+local function drawButton(btn, label, font, opts)
   font = font or love.graphics.getFont()
+  opts = opts or {}
   local fh = font:getHeight()
   local ty = btn.y + (btn.h - fh)/2 + BUTTON_LABEL_TWEAK
-  love.graphics.setColor(0.85,0.85,0.85,1)
-  love.graphics.rectangle("fill", btn.x, btn.y, btn.w, btn.h, 10,10)
-  love.graphics.setColor(0,0,0,1)
-  love.graphics.rectangle("line", btn.x, btn.y, btn.w, btn.h, 10,10)
+  local chamfer = opts.chamfer or btn.chamfer or 10
+  local outlineOffset = 2
+  local alpha = opts.disabled and 0.45 or 1
+
+  love.graphics.setColor(0,0,0,alpha)
+  drawChamferedRect("fill", btn.x, btn.y, btn.w, btn.h, chamfer)
+
+  love.graphics.setColor(1,1,1,alpha)
+  drawChamferedRect("line", btn.x, btn.y, btn.w, btn.h, chamfer)
+
+  love.graphics.setColor(0,0,0,alpha)
+  drawChamferedRect("line", btn.x - outlineOffset, btn.y - outlineOffset,
+    btn.w + outlineOffset*2, btn.h + outlineOffset*2, chamfer + outlineOffset)
+
   love.graphics.setFont(font)
+  love.graphics.setColor(1,1,1,alpha)
   love.graphics.printf(label, btn.x, ty, btn.w, "center")
 end
 
@@ -1626,15 +1651,8 @@ local function game_draw()
   end
 
   -- Reset：オフラインは常時、オンラインは勝敗後のみ有効
-  if gameConfig.mode ~= "online" or gameOver then
-    drawButton(resetBtn, "Reset", fonts.ui)
-  else
-    -- 無効表示にしたい場合は薄く覆う等（クリックは上のハンドラで既に無効）
-    drawButton(resetBtn, "Reset", fonts.ui)
-    love.graphics.setColor(1,1,1,0.55)
-    love.graphics.rectangle("fill", resetBtn.x, resetBtn.y, resetBtn.w, resetBtn.h, 10,10)
-    love.graphics.setColor(1,1,1,1)
-  end
+  local resetDisabled = gameConfig.mode == "online" and not gameOver
+  drawButton(resetBtn, "Reset", fonts.ui, { disabled = resetDisabled })
 
    -- Title：常時
   drawButton(goTitleBtn, "Title", fonts.ui)
@@ -2294,18 +2312,10 @@ function rules.draw()
   love.graphics.printf(("<%d/%d>"):format(rules.page, #rules.pages), mx, my+mh-62, mw, "center")
 
   -- ボタン
-  local function _btn(b, label, disabled)
-    local a = disabled and 0.45 or 1
-    love.graphics.setColor(0.92,0.92,0.92,a)
-    love.graphics.rectangle("fill", b.x,b.y,b.w,b.h, 10,10)
-    love.graphics.setColor(0,0,0,a)
-    love.graphics.rectangle("line", b.x,b.y,b.w,b.h, 10,10)
-    love.graphics.printf(label, b.x, b.y + (b.h - (fonts.ui:getHeight()))/2 - 2, b.w, "center")
-    love.graphics.setColor(1,1,1,1)
-  end
-  _btn(rules.prevBtn, "＜", rules.page<=1)
-  _btn(rules.closeBtn,"Close", false)
-  _btn(rules.nextBtn, "＞", rules.page>=#rules.pages)
+  drawButton(rules.prevBtn, "＜", fonts.ui, { disabled = rules.page<=1 })
+  drawButton(rules.closeBtn, "Close", fonts.ui)
+  drawButton(rules.nextBtn, "＞", fonts.ui, { disabled = rules.page>=#rules.pages })
+  love.graphics.setColor(1,1,1,1)
 end
 
 function rules.mousepressed(x,y,b)
