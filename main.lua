@@ -31,6 +31,7 @@ local UI = {
   panelW = 560,
   panelH = 460,
   panelTopRatio = 0.18,
+  panelContentOffset = 24,
   sectionGap = 40,
   lineGap = 22,
   controlGap = 16,
@@ -2019,16 +2020,18 @@ local function drawOptionPanel(title, contentFn)
   local pw = math.min(UI.panelW, ww*0.86)
   local ph = math.min(UI.panelH, hh*0.74)
   local px = (ww - pw)/2
-  local py = hh*UI.panelTopRatio
+  local py = hh * UI.panelTopRatio
+  local contentPy = py + UI.panelContentOffset
+  local contentPh = math.max(0, ph - UI.panelContentOffset)
 
   love.graphics.setColor(0.98,0.98,0.98,1); love.graphics.rectangle("fill", px,py, pw,ph, 12,12)
   love.graphics.setColor(0,0,0,1); love.graphics.rectangle("line", px,py, pw,ph, 12,12)
 
   love.graphics.setFont(fonts.title)
-  love.graphics.printf(title, px, py+10, pw, "center")
+  love.graphics.printf(title, px, contentPy+10, pw, "center")
   love.graphics.setFont(fonts.ui)
 
-  contentFn(px,py,pw,ph)
+  contentFn(px,contentPy,pw,contentPh)
 end
 
 --↓後で消す
@@ -2345,7 +2348,7 @@ local opt_local = { startBtn=nil, backBtn=nil }
 function opt_local.enter()
   local ww, hh = love.graphics.getDimensions()
   local bw, bh = 140, 44
-  local y = hh*0.72
+  local y = hh*0.75 + UI.panelContentOffset
   opt_local.startBtn = { x=ww*0.5 - bw - 10, y=y, w=bw, h=bh }
   opt_local.backBtn  = { x=ww*0.5 + 10,      y=y, w=bw, h=bh }
 end
@@ -2376,7 +2379,7 @@ local opt_com = { startBtn=nil, backBtn=nil, side="W", diffIdx=2, diffs={"Easy",
 function opt_com.enter()
   local ww, hh = love.graphics.getDimensions()
   local bw, bh = 140, 44
-  local y = hh*0.75
+  local y = hh*0.76 + UI.panelContentOffset
   opt_com.startBtn = { x=ww*0.5 - bw - 10, y=y, w=bw, h=bh }
   opt_com.backBtn  = { x=ww*0.5 + 10,      y=y, w=bw, h=bh }
 end
@@ -2452,7 +2455,9 @@ local function _acceptPortChar(ch) return ch:match("%d") ~= nil end
 function opt_online.enter()
   local ww, hh = love.graphics.getDimensions()
   local bw, bh = 160, 44
-  local y = hh*0.78
+  local baseY = hh*0.65 + UI.panelContentOffset
+  local bottomMargin = hh - (baseY + bh)
+  local y = hh - bh - bottomMargin * 0.5
   opt_online.startBtn = { x=ww*0.5 - bw - 10, y=y, w=bw, h=bh }
   opt_online.backBtn  = { x=ww*0.5 + 10,      y=y, w=bw, h=bh }
 
