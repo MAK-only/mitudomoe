@@ -88,15 +88,19 @@ local gameConfig = {
 
 -- フォント（日本語対応想定）
 local FONTS_DIR = "fonts/"
-local fonts = { ui=nil, title=nil, small=nil }
+local fonts = { ui=nil, title=nil, small=nil, button=nil, menuButton=nil }
 local function loadFonts()
   local ok
   ok, fonts.ui    = pcall(love.graphics.newFont, FONTS_DIR.."NotoSansJP-Regular.ttf", 18)
   ok, fonts.title = pcall(love.graphics.newFont, FONTS_DIR.."NotoSansJP-Bold.ttf",    36)
   ok, fonts.small = pcall(love.graphics.newFont, FONTS_DIR.."NotoSansJP-Regular.ttf", 14)
+  ok, fonts.button = pcall(love.graphics.newFont, FONTS_DIR.."TokuLaboV2.otf", 18)
+  ok, fonts.menuButton = pcall(love.graphics.newFont, FONTS_DIR.."TokuLaboV2.otf", 20)
   if not fonts.ui    then fonts.ui    = love.graphics.newFont(18) end
   if not fonts.title then fonts.title = love.graphics.newFont(36) end
   if not fonts.small then fonts.small = love.graphics.newFont(14) end
+  if not fonts.button then fonts.button = fonts.ui end
+  if not fonts.menuButton then fonts.menuButton = fonts.button end
 end
 
 -- 受信順制御用
@@ -275,8 +279,6 @@ local function dispatch_textinput(t)  if scenes[scene] and scenes[scene].textinp
 -- 共有 util
 local function pointInRect(x,y,rx,ry,rw,rh) return x>=rx and x<=rx+rw and y>=ry and y<=ry+rh end
 
--- ボタン描画（縦センタリング）
-local BUTTON_LABEL_TWEAK = -2
 local function drawChamferedRect(mode, x, y, w, h, c)
   love.graphics.polygon(mode,
     x + c, y,
@@ -291,10 +293,15 @@ local function drawChamferedRect(mode, x, y, w, h, c)
 end
 
 local function drawButton(btn, label, font, opts)
-  font = font or love.graphics.getFont()
+  font = font or fonts.button or fonts.ui or love.graphics.getFont()
   opts = opts or {}
   local fh = font:getHeight()
-  local ty = btn.y + (btn.h - fh)/2 + BUTTON_LABEL_TWEAK
+  local ascent = font.getAscent and font:getAscent() or fh
+  local descent = font.getDescent and font:getDescent() or 0
+  descent = math.abs(descent)
+  local textHeight = ascent + descent
+  if textHeight == 0 then textHeight = fh end
+  local ty = btn.y + (btn.h - textHeight)/2
   local chamfer = opts.chamfer or btn.chamfer or 10
   local outlineOffset = 2
   local alpha = opts.disabled and 0.45 or 1
@@ -1647,15 +1654,15 @@ local function game_draw()
 
   -- Undo：オンラインでは描かない（将来完全削除するならこのままでもOK）
   if gameConfig.mode ~= "online" then
-    drawButton(undoBtn, "Undo", fonts.ui)
+    drawButton(undoBtn, "Undo", fonts.button)
   end
 
   -- Reset：オフラインは常時、オンラインは勝敗後のみ有効
   local resetDisabled = gameConfig.mode == "online" and not gameOver
-  drawButton(resetBtn, "Reset", fonts.ui, { disabled = resetDisabled })
+  drawButton(resetBtn, "Reset", fonts.button, { disabled = resetDisabled })
 
-   -- Title：常時
-  drawButton(goTitleBtn, "Title", fonts.ui)
+  -- Title：常時
+  drawButton(goTitleBtn, "Title", fonts.button)
 
   local cx = drawX + boardW * scale / 2
   local cy = drawY + boardH * scale / 2
@@ -1743,8 +1750,8 @@ local function game_draw()
     love.graphics.printf(M.title, xText, yText, M.mw - M.pad*2, "left")
     yText = yText + fonts.ui:getHeight() + 10
     love.graphics.printf(M.desc,  xText, yText, M.mw - M.pad*2, "left")
-    drawButton(M.yes, "Yes", fonts.ui)
-    drawButton(M.no,  "No",  fonts.ui)
+    drawButton(M.yes, "Yes", fonts.button)
+    drawButton(M.no,  "No",  fonts.button)
   end
 
   if showTitleConfirm then
@@ -1761,8 +1768,8 @@ local function game_draw()
     love.graphics.printf(M.title, xText, yText, M.mw - M.pad*2, "left")
     yText = yText + fonts.ui:getHeight() + 10
     love.graphics.printf(M.desc,  xText, yText, M.mw - M.pad*2, "left")
-    drawButton(M.yes, "Yes", fonts.ui)
-    drawButton(M.no,  "No",  fonts.ui)
+    drawButton(M.yes, "Yes", fonts.button)
+    drawButton(M.no,  "No",  fonts.button)
   end
 end
 
@@ -1914,11 +1921,11 @@ function menu.enter()
   menu.trainBtn = { x = 12, y = hh - 26, w = 140, h = 18 }
 
   menu.buttons = {
-    {label="ルール",         x=cx - bw/2, y=baseY + (bh+gap)*0, w=bw, h=bh, action=function() switchScene("rules") end},
-    {label="ローカル対戦",   x=cx - bw/2, y=baseY + (bh+gap)*1, w=bw, h=bh, action=function() switchScene("opt_local")   end},
-    {label="vs COM",         x=cx - bw/2, y=baseY + (bh+gap)*2, w=bw, h=bh, action=function() switchScene("opt_com")     end},
+    {label="Rule",           x=cx - bw/2, y=baseY + (bh+gap)*0, w=bw, h=bh, action=function() switchScene("rules") end},
+    {label="Local",          x=cx - bw/2, y=baseY + (bh+gap)*1, w=bw, h=bh, action=function() switchScene("opt_local")   end},
+    {label="vsCOM",          x=cx - bw/2, y=baseY + (bh+gap)*2, w=bw, h=bh, action=function() switchScene("opt_com")     end},
     -- {label="学習モード",     x=cx - bw/2, y=baseY + (bh+gap)*3, w=bw, h=bh, action=function() ensureLearner(); switchScene("train") end},
-    {label="オンライン対戦", x=cx - bw/2, y=baseY + (bh+gap)*3, w=bw, h=bh, action=function() switchScene("opt_online") end},
+    {label="Online",         x=cx - bw/2, y=baseY + (bh+gap)*3, w=bw, h=bh, action=function() switchScene("opt_online") end},
   }
 end
 
@@ -1951,7 +1958,7 @@ function menu.draw()
     love.graphics.setFont(fonts.small); love.graphics.setColor(0,0,0,0.7); love.graphics.printf("Mitsudomoe", 0, hh*0.24+24, ww, "center")
     love.graphics.setFont(fonts.ui)
   end
-  for _,btn in ipairs(menu.buttons) do drawButton(btn, btn.label, fonts.ui) end
+  for _,btn in ipairs(menu.buttons) do drawButton(btn, btn.label, fonts.menuButton) end
 
   -- コピーライト（画面下部中央・薄め）
   local ww,hh = love.graphics.getDimensions()
@@ -2312,9 +2319,9 @@ function rules.draw()
   love.graphics.printf(("<%d/%d>"):format(rules.page, #rules.pages), mx, my+mh-62, mw, "center")
 
   -- ボタン
-  drawButton(rules.prevBtn, "＜", fonts.ui, { disabled = rules.page<=1 })
-  drawButton(rules.closeBtn, "Close", fonts.ui)
-  drawButton(rules.nextBtn, "＞", fonts.ui, { disabled = rules.page>=#rules.pages })
+  drawButton(rules.prevBtn, "＜", fonts.button, { disabled = rules.page<=1 })
+  drawButton(rules.closeBtn, "Close", fonts.button)
+  drawButton(rules.nextBtn, "＞", fonts.button, { disabled = rules.page>=#rules.pages })
   love.graphics.setColor(1,1,1,1)
 end
 
@@ -2350,8 +2357,8 @@ function opt_local.draw()
     love.graphics.setColor(0,0,0,1)
     love.graphics.printf("オプションはありません。そのまま開始できます。", px+20, py+80, pw-40, "left")
   end)
-  drawButton(opt_local.startBtn, "Start", fonts.ui)
-  drawButton(opt_local.backBtn,  "Back",  fonts.ui)
+  drawButton(opt_local.startBtn, "Start", fonts.button)
+  drawButton(opt_local.backBtn,  "Back",  fonts.button)
 end
 
 function opt_local.mousepressed(x,y,b)
@@ -2404,8 +2411,8 @@ function opt_com.draw()
     opt_com._d1, opt_com._d2, opt_com._d3 = d1, d2, d3
   end)
 
-  drawButton(opt_com.startBtn, "Start", fonts.ui)
-  drawButton(opt_com.backBtn,  "Back",  fonts.ui)
+  drawButton(opt_com.startBtn, "Start", fonts.button)
+  drawButton(opt_com.backBtn,  "Back",  fonts.button)
 end
 
 function opt_com.mousepressed(x,y,b)
@@ -2508,8 +2515,8 @@ function opt_online.draw()
     love.graphics.printf("※Join時は相手のIP/ポートに合わせてください。", x, y, pw - 72, "left")
   end)
 
-  drawButton(opt_online.startBtn, "Start", fonts.ui)
-  drawButton(opt_online.backBtn,  "Back",  fonts.ui)
+  drawButton(opt_online.startBtn, "Start", fonts.button)
+  drawButton(opt_online.backBtn,  "Back",  fonts.button)
 
   if scenes.game_online._peerLost then
     love.graphics.setColor(0,0,0,0.6)
