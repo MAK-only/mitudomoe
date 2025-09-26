@@ -115,6 +115,58 @@ local NET_MUTE = false
 local function encodeSnapshot() return snapshot() end
 local function decodeAndRestore(snap) restore(snap); return true end
 
+local socket_ok, socket = pcall(require, "socket")
+
+local function detectLocalIP()
+  if not socket_ok or not socket then return nil end
+
+  local function isUsable(ip)
+    return ip and ip ~= "" and ip ~= "0.0.0.0"
+  end
+
+  local udp = socket.udp()
+  if udp then
+    udp:settimeout(0)
+    local ok = udp:setpeername("8.8.8.8", 80)
+    if not ok then
+      ok = udp:setpeername("1.1.1.1", 80)
+    end
+    if ok then
+      local ip = udp:getsockname()
+      if type(ip) == "string" and isUsable(ip) then
+        udp:close()
+        return ip
+      elseif type(ip) == "table" then
+        local ipStr = ip[1]
+        if isUsable(ipStr) then
+          udp:close()
+          return ipStr
+        end
+      end
+    end
+    udp:close()
+  end
+
+  local hostname = socket.dns and socket.dns.gethostname and socket.dns.gethostname()
+  if hostname then
+    local resolved = socket.dns.toip(hostname)
+    if type(resolved) == "string" then
+      if isUsable(resolved) then return resolved end
+    elseif type(resolved) == "table" then
+      for _, ip in ipairs(resolved) do
+        if isUsable(ip) and ip ~= "127.0.0.1" then
+          return ip
+        end
+      end
+      if isUsable(resolved[1]) then
+        return resolved[1]
+      end
+    end
+  end
+
+  return nil
+end
+
 -- net.lua 的な薄い層（1ファイルにしても可）
 net = {
   role = nil,          -- "host" / "guest"
@@ -374,7 +426,17 @@ local function drawSelect(x,y,w,h,value)
   love.graphics.setColor(0,0,0,1)
   love.graphics.rectangle("line", x, y, w, h, 8,8)
   local fh = love.graphics.getFont():getHeight()
-  love.graphics.printf(value, x+8, y + (h - fh)/2 - 2, w-16, "left")
+  local text, color
+  if type(value) == "table" then
+    text = value.text or ""
+    color = value.color or {0,0,0,1}
+  else
+    text = value
+    color = {0,0,0,1}
+  end
+  love.graphics.setColor(color)
+  love.graphics.printf(text, x+8, y + (h - fh)/2 - 2, w-16, "left")
+  love.graphics.setColor(0,0,0,1)
   return {x=x, y=y, w=w, h=h}
 end
 
@@ -2468,7 +2530,8 @@ local opt_online = {
   startBtn=nil, backBtn=nil,
   role="create", side="W",
   focus=nil,          -- "host" / "port" / nil
-  host="", port=""
+  host="", port="",
+  autoHost=nil,
 }
 
 local function _acceptHostChar(ch) return ch:match("[0-9a-zA-Z%.:%-]") ~= nil end -- IPv4/IPv6/ホスト名ざっくり
@@ -2486,8 +2549,13 @@ function opt_online.enter()
   -- 既存設定をUIに反映
   opt_online.role = gameConfig.online.role or "create"
   opt_online.side = gameConfig.side or "W"
-  opt_online.host = tostring(gameConfig.online.host or "127.0.0.1")
   opt_online.port = tostring(gameConfig.online.port or 22122)
+  opt_online.autoHost = detectLocalIP()
+  if opt_online.role == "create" then
+    opt_online.host = tostring(opt_online.autoHost or DEFAULT_HOST)
+  else
+    opt_online.host = ""
+  end
   opt_online.focus = nil
 end
 
@@ -2531,8 +2599,18 @@ function opt_online.draw()
     love.graphics.printf("接続先（IP/ホスト名とポート）", x, y, pw - 72, "left")
     y = y + fonts.ui:getHeight() + UI.controlGap
     local hostW, portW = UI.selectW, 120
-    opt_online._host = drawSelect(x,                 y, hostW, UI.selectH, (opt_online.focus=="host" and "> " or "")..opt_online.host)
-    opt_online._port = drawSelect(x + hostW + 12,    y, portW, UI.selectH, (opt_online.focus=="port" and "> " or "")..opt_online.port)
+    local hostLabel = opt_online.host or ""
+    local hostColor = {0,0,0,1}
+    if hostLabel == "" then
+      hostLabel = "ホストのIPアドレスを入力"
+      hostColor = {0.55,0.55,0.55,1}
+    end
+    if opt_online.focus == "host" then
+      hostLabel = "> " .. hostLabel
+    end
+    opt_online._host = drawSelect(x, y, hostW, UI.selectH, { text = hostLabel, color = hostColor })
+    local portLabel = (opt_online.focus=="port" and "> " or "")..opt_online.port
+    opt_online._port = drawSelect(x + hostW + 12,    y, portW, UI.selectH, portLabel)
 
     y = y + UI.selectH + 8
     love.graphics.setColor(0,0,0,0.7)
@@ -2560,10 +2638,15 @@ function opt_online.mousepressed(x,y,b)
   -- Role（Create/Join）
   if opt_online._r1 and pointInRect(x,y,opt_online._r1.x,opt_online._r1.y,opt_online._r1.w,opt_online._r1.h) then
     opt_online.role = "create"
+    opt_online.focus = nil
+    opt_online.autoHost = detectLocalIP() or opt_online.autoHost
+    opt_online.host = tostring(opt_online.autoHost or DEFAULT_HOST)
     return
   end
   if opt_online._r2 and pointInRect(x,y,opt_online._r2.x,opt_online._r2.y,opt_online._r2.w,opt_online._r2.h) then
     opt_online.role = "join"
+    opt_online.focus = nil
+    opt_online.host = ""
     return
   end
 
@@ -2592,7 +2675,12 @@ function opt_online.mousepressed(x,y,b)
     gameConfig.mode="online"
     gameConfig.side=opt_online.side
     gameConfig.online.role=opt_online.role
-    gameConfig.online.host=opt_online.host ~= "" and opt_online.host or "127.0.0.1"
+    if opt_online.role == "create" then
+      local hostValue = opt_online.host ~= "" and opt_online.host or opt_online.autoHost or DEFAULT_HOST
+      gameConfig.online.host = hostValue
+    else
+      gameConfig.online.host = opt_online.host ~= "" and opt_online.host or nil
+    end
     gameConfig.online.port=tonumber(opt_online.port) or 22122
     switchScene("game_online")
     return
