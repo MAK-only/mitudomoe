@@ -1473,8 +1473,8 @@ local function layoutResetModal()
   local btnW, btnH, gap = 100, 34, 20
   local mw = math.min(460, math.floor(ww * 0.7))
   local mx = (ww - mw) / 2
-  local title = "Reset the game?"
-  local desc  = "This will set: White to move, Moves = 1."
+  local title = "リセットしますか？"
+  local desc  = "ゲーム内容は失われます"
   local font  = fonts.ui or love.graphics.getFont()
   local _, wrapTitle = font:getWrap(title, mw - pad*2)
   local _, wrapDesc  = font:getWrap(desc,  mw - pad*2)
@@ -1496,8 +1496,8 @@ local function layoutGoTitleModal()
   local btnW, btnH, gap = 100, 34, 20
   local mw = math.min(460, math.floor(ww * 0.7))
   local mx = (ww - mw) / 2
-  local title = "Return to Title?"
-  local desc  = "Current game will be lost."
+  local title = "タイトルに戻りますか？"
+  local desc  = "ゲーム内容は失われます"
   local font  = fonts.ui or love.graphics.getFont()
   local _, wrapTitle = font:getWrap(title, mw - pad*2)
   local _, wrapDesc  = font:getWrap(desc,  mw - pad*2)
@@ -2501,8 +2501,8 @@ function opt_online.draw()
     -- 役割
     love.graphics.printf("役割", x, y, pw - 72, "left")
     y = y + UI.controlGap
-    local r1 = drawRadio(x,               y + 22, "部屋を作る（Create）", opt_online.role=="create")
-    local r2 = drawRadio(x + UI.radioDx,  y + 22, "部屋に入る（Join）",    opt_online.role=="join")
+    local r1 = drawRadio(x,               y + 22, "部屋を作る（ホスト）", opt_online.role=="create")
+    local r2 = drawRadio(x + UI.radioDx,  y + 22, "部屋に入る（接続）",    opt_online.role=="join")
     opt_online._r1, opt_online._r2 = r1, r2
 
     local lineH = math.max(24, love.graphics.getFont():getHeight() + 6)
@@ -2528,7 +2528,7 @@ function opt_online.draw()
     y = y + lineH + SECTION_TIGHT
 
     -- 接続先
-    love.graphics.printf("接続先（IP/ホスト名 と ポート）", x, y, pw - 72, "left")
+    love.graphics.printf("接続先（IP/ホスト名とポート）", x, y, pw - 72, "left")
     y = y + fonts.ui:getHeight() + UI.controlGap
     local hostW, portW = UI.selectW, 120
     opt_online._host = drawSelect(x,                 y, hostW, UI.selectH, (opt_online.focus=="host" and "> " or "")..opt_online.host)
