@@ -2138,7 +2138,7 @@ local function game_draw()
         love.graphics.circle("fill", x, y, math.min(sw,sh)*0.48)
         love.graphics.setColor(1,1,1, 0.9)
         love.graphics.draw(img, x, y, rot, sx2, sy2,
-                          img:getWidth()/2+PIECE_OX, img:getHeight()/2+PIECE_OY)
+        img:getWidth()/2+PIECE_OX, img:getHeight()/2+PIECE_OY)
         love.graphics.setBlendMode("alpha")
       else
         local t = math.max(0, math.min(1, e.t / EFFECT_FADE))
@@ -2156,6 +2156,27 @@ local function game_draw()
   end
 
   love.graphics.pop()
+
+  local coordFont = fonts.coord or fonts.small or love.graphics.getFont()
+  love.graphics.setFont(coordFont)
+  love.graphics.setColor(0,0,0,1)
+  local sX, sY = stepSize()
+  local topY = drawY - coordFont:getHeight() - 8
+  local rightX = drawX + boardW * scale + 8
+  for colIndex=1,GRID_COLS do
+    local cx = drawX + (BOARD_INNER.x + (colIndex-1) * sX) * scale
+    local labelIndex = (currentBottomSide == 'B') and (GRID_COLS - colIndex + 1) or colIndex
+    local label = tostring(labelIndex)
+    love.graphics.print(label, cx - coordFont:getWidth(label)/2, topY)
+  end
+  for rowIndex=1,GRID_ROWS do
+    local cy = drawY + (BOARD_INNER.y + (rowIndex-1) * sY) * scale
+    local labelIndex = (currentBottomSide == 'B') and (GRID_ROWS - rowIndex + 1) or rowIndex
+    local label = RANK_LABELS[labelIndex] or tostring(labelIndex)
+    love.graphics.print(label, rightX, cy - coordFont:getHeight()/2)
+  end
+  love.graphics.setFont(fonts.button or fonts.ui or love.graphics.getFont())
+  love.graphics.setColor(1,1,1,1)
 
   if gameOver then
     local msg = (winner=="W") and "White wins" or "Black wins"
