@@ -429,16 +429,7 @@ local function drawSelect(x,y,w,h,value)
   love.graphics.rectangle("fill", x, y, w, h, 8,8)
   love.graphics.setColor(0,0,0,1)
   love.graphics.rectangle("line", x, y, w, h, 8,8)
-
-  local font = love.graphics.getFont()
-  local fh = font:getHeight()
-  local ascent = font.getAscent and font:getAscent() or fh
-  local descent = font.getDescent and font:getDescent() or 0
-  descent = math.abs(descent)
-  local textHeight = ascent + descent
-  if textHeight == 0 then textHeight = fh end
-  local ty = y + (h - textHeight)/2
-
+  local fh = love.graphics.getFont():getHeight()
   local text, color
   if type(value) == "table" then
     text = value.text or ""
@@ -448,7 +439,7 @@ local function drawSelect(x,y,w,h,value)
     color = {0,0,0,1}
   end
   love.graphics.setColor(color)
-  love.graphics.printf(text, x+8, ty, w-16, "left")
+  love.graphics.printf(text, x+8, y + (h - fh)/2 - 2, w-16, "left")
   love.graphics.setColor(0,0,0,1)
   return {x=x, y=y, w=w, h=h}
 end
@@ -464,6 +455,10 @@ local scale, drawX, drawY
 local TEXT_W = 240
 local BOARD_OFFSET_X = 28
 local BOARD_OFFSET_Y = 28
+local LOG_AREA = { top = 0, bottom = 0 }
+local LOG_BUTTON_GAP = 12
+local LOG_DESIRED_HEIGHT = 220
+local LOG_TOP_EXTRA = 6
 
 -- 盤の向き
 local BOARD_ROTATION = 0
@@ -1542,17 +1537,55 @@ local function layoutUI()
   local availW = winW - TEXT_W - PAD*2
   scale = math.min(availW / boardW, (winH - PAD*2) / boardH)
   drawX = winW - PAD - boardW * scale - BOARD_OFFSET_X
-  drawY = (winH - boardH * scale) / 2 + BOARD_OFFSET_Y
+  local desiredY = (winH - boardH * scale) / 2 + BOARD_OFFSET_Y
+  local maxY = winH - PAD - boardH * scale
+  drawY = math.min(desiredY, maxY)
+  drawY = math.max(drawY, 0)
+
   local gap = 12
 
-  -- ボタンを上から順に
-  exportBtn.x = PAD
-  exportBtn.w = TEXT_W
-  local totalButtonsH = exportBtn.h + undoBtn.h + resetBtn.h + goTitleBtn.h + gap * 3
-  local startY = winH - PAD - totalButtonsH
+  -- 左パネルの基準位置を事前に計算
+  local tx, ty, tw = PAD, PAD, TEXT_W
+  local ycur = ty
+  if logo then
+    local lw, lh = logo:getWidth(), logo:getHeight()
+    if lw > 0 and lh > 0 then
+      local s = math.min(tw / lw, (winH * 0.14) / lh)
+      ycur = ycur + lh * s + 10
+    end
+  end
+
+  ycur = ycur + 20 * 4
+  local textTop = ycur
+  local messageFont = fonts.button or fonts.ui or love.graphics.getFont()
+  local logTop = textTop + WIN_MSG_OFFSET + messageFont:getHeight() + LOG_TOP_EXTRA
+
+  exportBtn.w = math.min(TEXT_W, 180)
+  exportBtn.x = PAD + (TEXT_W - exportBtn.w)
+
+  local buttonsStack = exportBtn.h + undoBtn.h + resetBtn.h + goTitleBtn.h + gap * 3
+  local availableSpace = winH - PAD - logTop
+  local maxLogHeight = math.max(0, availableSpace - buttonsStack - LOG_BUTTON_GAP)
+  local logHeight = math.min(LOG_DESIRED_HEIGHT, maxLogHeight)
+  if maxLogHeight < LOG_DESIRED_HEIGHT then
+    logHeight = maxLogHeight
+  end
+  if logHeight < 0 then logHeight = 0 end
+
+  local logBottom = logTop + logHeight
+  if logBottom + LOG_BUTTON_GAP + buttonsStack > winH - PAD then
+    logBottom = winH - PAD - buttonsStack - LOG_BUTTON_GAP
+    if logBottom < logTop then logBottom = logTop end
+    logHeight = math.max(0, logBottom - logTop)
+  end
+
+  LOG_AREA.top = logTop
+  LOG_AREA.bottom = logBottom
+
+  local startY = logBottom + LOG_BUTTON_GAP
   exportBtn.y = startY
 
-  undoBtn.x  = PAD
+  exportBtn.x = PAD
   undoBtn.y  = exportBtn.y + exportBtn.h + gap
   resetBtn.x = PAD
   resetBtn.y = undoBtn.y + undoBtn.h + gap
@@ -1882,6 +1915,7 @@ local function game_update(dt)
       ::continue::
     end
   end
+
   if moveLog.exportFeedback and moveLog.exportFeedback.timer then
     moveLog.exportFeedback.timer = moveLog.exportFeedback.timer - dt
     if moveLog.exportFeedback.timer <= 0 then
@@ -1947,9 +1981,18 @@ local function game_draw()
   love.graphics.print(("White: %d"):format(cw), tx, ycur); ycur = ycur + 20
 
   local textTop = ycur
-  local textBottom = exportBtn.y - 26
-  local logX, logY, logW = tx, textTop, tw
-  local logH = math.max(0, textBottom - textTop)
+  local logY = LOG_AREA.top or textTop
+  local logBottom = LOG_AREA.bottom
+  if not logY or logY <= textTop then
+    local messageFont = fonts.button or fonts.ui or love.graphics.getFont()
+    logY = textTop + WIN_MSG_OFFSET + messageFont:getHeight() + LOG_TOP_EXTRA
+  end
+  if not logBottom or logBottom <= logY then
+    logBottom = exportBtn.y - LOG_BUTTON_GAP
+  end
+  local textBottom = logBottom
+  local logX, logW = tx, tw
+  local logH = math.max(0, logBottom - logY)
   if logH > 0 then
     drawDoubleBorderRect(logX, logY, logW, logH, 10, { fillColor = {0.98,0.98,0.98,1} })
     local logPad = 10
@@ -1993,7 +2036,7 @@ local function game_draw()
       love.graphics.setColor(0,0,0,1)
     end
   else
-    moveLog.viewRect.x, moveLog.viewRect.y = tx, textTop
+    moveLog.viewRect.x, moveLog.viewRect.y = tx, logY
     moveLog.viewRect.w, moveLog.viewRect.h = tw, 0
     moveLog.maxScroll = 0
     moveLog.scroll = 0
@@ -2062,8 +2105,8 @@ local function game_draw()
   love.graphics.setFont(coordFont)
   love.graphics.setColor(0,0,0,1)
   local sX, sY = stepSize()
-  local topY = drawY + (BOARD_INNER.y * scale) - coordFont:getHeight() - 6
-  local rightX = drawX + (BOARD_INNER.x + BOARD_INNER.w) * scale + 6
+  local topY = drawY - coordFont:getHeight() - 8
+  local rightX = drawX + boardW * scale + 8
   for c=1,GRID_COLS do
     local cx = drawX + (BOARD_INNER.x + (c-1) * sX) * scale
     local label = tostring(c)
