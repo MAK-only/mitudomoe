@@ -512,6 +512,11 @@ local moveLog = {
   exportFeedback = nil,
 }
 
+-- 旧バージョンとの互換性のため、グローバル関数名を残しておく
+function recordMove(side, fromC, fromR, toC, toR)
+  moveLog:record(side, fromC, fromR, toC, toR)
+end
+
 function moveLog:effectiveCount()
   return #self.entries - self.undoneCount
 end
