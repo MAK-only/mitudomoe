@@ -512,31 +512,31 @@ local moveLog = {
   exportFeedback = nil,
 }
 
-local function effectiveLogCount()
-  return #moveLog.entries - moveLog.undoneCount
+function moveLog:effectiveCount()
+  return #self.entries - self.undoneCount
 end
 
-local function clearMoveLog()
-  moveLog.entries = {}
-  moveLog.undoneCount = 0
-  moveLog.scroll = 0
-  moveLog.maxScroll = 0
-  moveLog.pendingScrollToEnd = false
-  moveLog.exportFeedback = nil
-  moveLog.viewRect.x, moveLog.viewRect.y, moveLog.viewRect.w, moveLog.viewRect.h = 0, 0, 0, 0
-  moveLog.lineHeight = 0
+function moveLog:clear()
+  self.entries = {}
+  self.undoneCount = 0
+  self.scroll = 0
+  self.maxScroll = 0
+  self.pendingScrollToEnd = false
+  self.exportFeedback = nil
+  self.viewRect.x, self.viewRect.y, self.viewRect.w, self.viewRect.h = 0, 0, 0, 0
+  self.lineHeight = 0
 end
 
 local function formatCoord(c, r)
   return string.format("(%d%s)", tonumber(c) or 0, RANK_LABELS[r] or tostring(r))
 end
 
-local function recordMove(side, fromC, fromR, toC, toR)
-  if moveLog.undoneCount > 0 then
-    for i = 1, moveLog.undoneCount do
-      table.remove(moveLog.entries)
+function moveLog:record(side, fromC, fromR, toC, toR)
+  if self.undoneCount > 0 then
+    for _ = 1, self.undoneCount do
+      table.remove(self.entries)
     end
-    moveLog.undoneCount = 0
+    self.undoneCount = 0
   end
 
   local entry = {
@@ -546,36 +546,34 @@ local function recordMove(side, fromC, fromR, toC, toR)
   }
   entry.text = string.format("%s%s->%s",
     SIDE_SYMBOL[side] or "", formatCoord(fromC, fromR), formatCoord(toC, toR))
-  table.insert(moveLog.entries, entry)
-  moveLog.pendingScrollToEnd = true
+  table.insert(self.entries, entry)
+  self.pendingScrollToEnd = true
 end
 
-local function markMoveLogUndo()
-  if #moveLog.entries == 0 then return end
-  moveLog.undoneCount = math.min(#moveLog.entries, moveLog.undoneCount + 1)
+function moveLog:markUndo()
+  if #self.entries == 0 then return end
+  self.undoneCount = math.min(#self.entries, self.undoneCount + 1)
 end
 
-local function parentDir(path)
+local FileSystem = {}
+
+function FileSystem.parentDir(path)
   if not path or path == "" then return nil end
   local stripped = path:gsub("[/\\]+$", "")
   local parent = stripped:match("(.*)[/\\][^/\\]+$")
   return parent
 end
 
-local function escapePattern(text)
-  return (text:gsub("(%W)", "%%%1"))
-end
-
-local function pathExists(path)
+function FileSystem.pathExists(path)
   if not path or path == "" then return false end
   local ok, _, code = os.rename(path, path)
   if ok or code == 13 then return true end
   return false
 end
 
-local function ensureDirectory(path)
+function FileSystem.ensureDirectory(path)
   if not path or path == "" then return false end
-  if pathExists(path) then return true end
+  if FileSystem.pathExists(path) then return true end
   local osName = (love.system and love.system.getOS and love.system.getOS()) or (jit and jit.os) or ""
   local quoted
   if osName == "Windows" then
@@ -585,18 +583,18 @@ local function ensureDirectory(path)
     quoted = '"' .. path:gsub('"', '\\"') .. '"'
     os.execute('mkdir -p ' .. quoted)
   end
-  return pathExists(path)
+  return FileSystem.pathExists(path)
 end
 
-local function fileExists(path)
+function FileSystem.fileExists(path)
   if not path or path == "" then return false end
   local f = io.open(path, "r")
   if f then f:close(); return true end
   return false
 end
 
-local function exportMoveLog()
-  local count = effectiveLogCount()
+function moveLog:export()
+  local count = self:effectiveCount()
   if count <= 0 then
     return false, "ログがありません"
   end
@@ -610,9 +608,9 @@ local function exportMoveLog()
     return false, "保存先を特定できません"
   end
 
-  local parent = parentDir(baseDir) or baseDir
+  local parent = FileSystem.parentDir(baseDir) or baseDir
   local logDir = parent .. PATH_SEP .. "mitudomoe_log"
-  if not ensureDirectory(logDir) then
+  if not FileSystem.ensureDirectory(logDir) then
     return false, "フォルダを作成できませんでした"
   end
 
@@ -625,7 +623,7 @@ local function exportMoveLog()
   local basePath = logDir .. PATH_SEP .. fileBase
   local path = basePath .. ".txt"
   local idx = 1
-  while fileExists(path) do
+  while FileSystem.fileExists(path) do
     path = string.format("%s(%d).txt", basePath, idx)
     idx = idx + 1
   end
@@ -636,7 +634,7 @@ local function exportMoveLog()
   end
 
   for i = 1, count do
-    local text = moveLog.entries[i] and moveLog.entries[i].text or ""
+    local text = self.entries[i] and self.entries[i].text or ""
     file:write(text)
     if i < count then file:write("\n") end
   end
@@ -759,7 +757,7 @@ local function undoLastMove()
   local s = table.remove(history)
   if s then
     restore(s)
-    markMoveLogUndo()
+    moveLog:markUndo()
   end
 end
 
@@ -1529,7 +1527,7 @@ resetGame = function()
   winner    = nil
   selected  = nil
   history   = {}
-  clearMoveLog()
+  moveLog:clear()
 end
 
 -- 座標系・レイアウト
@@ -1853,7 +1851,7 @@ handleTitleModalClick = function(mx, my, b)
   if pointInRect(mx,my, M.yes.x,M.yes.y,M.yes.w,M.yes.h) then
     if gameConfig.mode=="online" and net then net.close() end
     showTitleConfirm = false
-    clearMoveLog()
+    moveLog:clear()
     switchScene("menu")
     return true
   elseif pointInRect(mx,my, M.no.x,M.no.y,M.no.w,M.no.h) then
@@ -2009,7 +2007,7 @@ local function game_draw()
     end
   end
 
-  drawButton(exportBtn, "Export", fonts.button, { disabled = effectiveLogCount() <= 0 })
+  drawButton(exportBtn, "Export", fonts.button, { disabled = moveLog:effectiveCount() <= 0 })
 
   -- Undo：オンラインでは描かない（将来完全削除するならこのままでもOK）
   if gameConfig.mode ~= "online" then
@@ -2199,12 +2197,13 @@ local function handleTopButtons(mx, my, b)
   if b ~= 1 then return false end
 
   if pointInRect(mx,my, exportBtn.x,exportBtn.y,exportBtn.w,exportBtn.h) then
-    if effectiveLogCount() <= 0 then
+    if moveLog:effectiveCount() <= 0 then
       moveLog.exportFeedback = { ok = false, message = "ログがありません", timer = 3 }
     else
-      local ok, pathOrErr = exportMoveLog()
+      local ok, pathOrErr = moveLog:export()
       if ok then
-        local fileName = pathOrErr:match("[^"..escapePattern(PATH_SEP).."]+$") or pathOrErr
+        local pattern = (PATH_SEP == "\\") and "([^\\]+)$" or "([^/]+)$"
+        local fileName = pathOrErr:match(pattern) or pathOrErr
         moveLog.exportFeedback = {
           ok = true,
           message = ("エクスポートしました: %s"):format(fileName),
