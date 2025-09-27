@@ -97,7 +97,7 @@ local function loadFonts()
   ok, fonts.small = pcall(love.graphics.newFont, FONTS_DIR.."Boku2-Regular.otf", 14)
   ok, fonts.button = pcall(love.graphics.newFont, FONTS_DIR.."TokuLaboV2.otf", 18)
   ok, fonts.menuButton = pcall(love.graphics.newFont, FONTS_DIR.."TokuLaboV2.otf", 20)
-  ok, fonts.coord = pcall(love.graphics.newFont, FONTS_DIR.."03スマートフォントUI.otf", 18)
+  ok, fonts.coord = pcall(love.graphics.newFont, FONTS_DIR.."03スマートフォントUI.otf", 14)
   if not fonts.ui    then fonts.ui    = love.graphics.newFont(18) end
   if not fonts.title then fonts.title = love.graphics.newFont(36) end
   if not fonts.small then fonts.small = love.graphics.newFont(14) end
@@ -1537,10 +1537,14 @@ local function layoutUI()
   local availW = winW - TEXT_W - PAD*2
   scale = math.min(availW / boardW, (winH - PAD*2) / boardH)
   drawX = winW - PAD - boardW * scale - BOARD_OFFSET_X
-  local desiredY = (winH - boardH * scale) / 2 + BOARD_OFFSET_Y
-  local maxY = winH - PAD - boardH * scale
-  drawY = math.min(desiredY, maxY)
-  drawY = math.max(drawY, 0)
+  local bottomY = winH - PAD - boardH * scale
+  local coordFont = fonts.coord or fonts.small or love.graphics.getFont()
+  local topMargin = coordFont:getHeight() + 8
+  drawY = math.max(bottomY, topMargin)
+  if drawY + boardH * scale > winH - PAD then
+    drawY = winH - PAD - boardH * scale
+  end
+  if drawY < 0 then drawY = 0 end
 
   local gap = 12
 
@@ -1560,7 +1564,7 @@ local function layoutUI()
   local messageFont = fonts.button or fonts.ui or love.graphics.getFont()
   local logTop = textTop + WIN_MSG_OFFSET + messageFont:getHeight() + LOG_TOP_EXTRA
 
-  exportBtn.w = math.min(TEXT_W, 180)
+  exportBtn.w = math.min(TEXT_W, 130)
   exportBtn.x = PAD + (TEXT_W - exportBtn.w)
 
   local buttonsStack = exportBtn.h + undoBtn.h + resetBtn.h + goTitleBtn.h + gap * 3
@@ -1585,7 +1589,7 @@ local function layoutUI()
   local startY = logBottom + LOG_BUTTON_GAP
   exportBtn.y = startY
 
-  exportBtn.x = PAD
+  undoBtn.x  = PAD
   undoBtn.y  = exportBtn.y + exportBtn.h + gap
   resetBtn.x = PAD
   resetBtn.y = undoBtn.y + undoBtn.h + gap
