@@ -89,7 +89,7 @@ local gameConfig = {
 
 -- フォント（日本語対応想定）
 local FONTS_DIR = "fonts/"
-local fonts = { ui=nil, title=nil, small=nil, button=nil, menuButton=nil }
+local fonts = { ui=nil, title=nil, small=nil, button=nil, menuButton=nil, coord=nil }
 local function loadFonts()
   local ok
   ok, fonts.ui    = pcall(love.graphics.newFont, FONTS_DIR.."Boku2-Regular.otf", 18)
@@ -97,11 +97,13 @@ local function loadFonts()
   ok, fonts.small = pcall(love.graphics.newFont, FONTS_DIR.."Boku2-Regular.otf", 14)
   ok, fonts.button = pcall(love.graphics.newFont, FONTS_DIR.."TokuLaboV2.otf", 18)
   ok, fonts.menuButton = pcall(love.graphics.newFont, FONTS_DIR.."TokuLaboV2.otf", 20)
+  ok, fonts.coord = pcall(love.graphics.newFont, FONTS_DIR.."03スマートフォントUI.otf", 18)
   if not fonts.ui    then fonts.ui    = love.graphics.newFont(18) end
   if not fonts.title then fonts.title = love.graphics.newFont(36) end
   if not fonts.small then fonts.small = love.graphics.newFont(14) end
   if not fonts.button then fonts.button = fonts.ui end
   if not fonts.menuButton then fonts.menuButton = fonts.button end
+  if not fonts.coord then fonts.coord = fonts.small end
 end
 
 -- 受信順制御用
@@ -310,6 +312,7 @@ local TEXT_RATIO = 0.2
 local undoBtn  = { x = 0, y = 0, w = 84, h = 28, chamfer = 5 }
 local resetBtn = { x = 0, y = 0, w = 84, h = 28, chamfer = 5 }
 local goTitleBtn= { x = 0, y = 0, w = 84, h = 28, chamfer = 5 }
+local exportBtn = { x = 0, y = 0, w = 160, h = 28, chamfer = 5 }
 local WIN_MSG_OFFSET = 30
 
 -- 消滅エフェクト設定
@@ -328,6 +331,7 @@ local function dispatch_draw()       if scenes[scene] and scenes[scene].draw   t
 local function dispatch_mousepressed(x,y,b) if scenes[scene] and scenes[scene].mousepressed then scenes[scene].mousepressed(x,y,b) end end
 local function dispatch_keypressed(k) if scenes[scene] and scenes[scene].keypressed then scenes[scene].keypressed(k) end end
 local function dispatch_textinput(t)  if scenes[scene] and scenes[scene].textinput  then scenes[scene].textinput(t)  end end
+local function dispatch_wheelmoved(dx,dy) if scenes[scene] and scenes[scene].wheelmoved then scenes[scene].wheelmoved(dx,dy) end end
 
 -- 共有 util
 local function pointInRect(x,y,rx,ry,rw,rh) return x>=rx and x<=rx+rw and y>=ry and y<=ry+rh end
@@ -425,7 +429,16 @@ local function drawSelect(x,y,w,h,value)
   love.graphics.rectangle("fill", x, y, w, h, 8,8)
   love.graphics.setColor(0,0,0,1)
   love.graphics.rectangle("line", x, y, w, h, 8,8)
-  local fh = love.graphics.getFont():getHeight()
+
+  local font = love.graphics.getFont()
+  local fh = font:getHeight()
+  local ascent = font.getAscent and font:getAscent() or fh
+  local descent = font.getDescent and font:getDescent() or 0
+  descent = math.abs(descent)
+  local textHeight = ascent + descent
+  if textHeight == 0 then textHeight = fh end
+  local ty = y + (h - textHeight)/2
+
   local text, color
   if type(value) == "table" then
     text = value.text or ""
@@ -435,7 +448,7 @@ local function drawSelect(x,y,w,h,value)
     color = {0,0,0,1}
   end
   love.graphics.setColor(color)
-  love.graphics.printf(text, x+8, y + (h - fh)/2 - 2, w-16, "left")
+  love.graphics.printf(text, x+8, ty, w-16, "left")
   love.graphics.setColor(0,0,0,1)
   return {x=x, y=y, w=w, h=h}
 end
@@ -449,6 +462,8 @@ local logo
 local BOARD_INNER = { x=0, y=0, w=0, h=0 }
 local scale, drawX, drawY
 local TEXT_W = 240
+local BOARD_OFFSET_X = 28
+local BOARD_OFFSET_Y = 28
 
 -- 盤の向き
 local BOARD_ROTATION = 0
@@ -481,6 +496,156 @@ local gameOver  = false
 local winner    = nil
 local showResetConfirm = false
 local showTitleConfirm  = false
+
+local PATH_SEP = package.config:sub(1,1)
+local RANK_LABELS = { "一", "二", "三", "四", "五", "六", "七", "八" }
+local SIDE_SYMBOL = { W = "○", B = "●" }
+
+local moveLog = {
+  entries = {},
+  undoneCount = 0,
+  scroll = 0,
+  maxScroll = 0,
+  pendingScrollToEnd = false,
+  viewRect = { x = 0, y = 0, w = 0, h = 0 },
+  lineHeight = 0,
+  exportFeedback = nil,
+}
+
+local function effectiveLogCount()
+  return #moveLog.entries - moveLog.undoneCount
+end
+
+local function clearMoveLog()
+  moveLog.entries = {}
+  moveLog.undoneCount = 0
+  moveLog.scroll = 0
+  moveLog.maxScroll = 0
+  moveLog.pendingScrollToEnd = false
+  moveLog.exportFeedback = nil
+  moveLog.viewRect.x, moveLog.viewRect.y, moveLog.viewRect.w, moveLog.viewRect.h = 0, 0, 0, 0
+  moveLog.lineHeight = 0
+end
+
+local function formatCoord(c, r)
+  return string.format("(%d%s)", tonumber(c) or 0, RANK_LABELS[r] or tostring(r))
+end
+
+local function recordMove(side, fromC, fromR, toC, toR)
+  if moveLog.undoneCount > 0 then
+    for i = 1, moveLog.undoneCount do
+      table.remove(moveLog.entries)
+    end
+    moveLog.undoneCount = 0
+  end
+
+  local entry = {
+    side = side,
+    fromC = fromC, fromR = fromR,
+    toC = toC, toR = toR,
+  }
+  entry.text = string.format("%s%s->%s",
+    SIDE_SYMBOL[side] or "", formatCoord(fromC, fromR), formatCoord(toC, toR))
+  table.insert(moveLog.entries, entry)
+  moveLog.pendingScrollToEnd = true
+end
+
+local function markMoveLogUndo()
+  if #moveLog.entries == 0 then return end
+  moveLog.undoneCount = math.min(#moveLog.entries, moveLog.undoneCount + 1)
+end
+
+local function parentDir(path)
+  if not path or path == "" then return nil end
+  local stripped = path:gsub("[/\\]+$", "")
+  local parent = stripped:match("(.*)[/\\][^/\\]+$")
+  return parent
+end
+
+local function escapePattern(text)
+  return (text:gsub("(%W)", "%%%1"))
+end
+
+local function pathExists(path)
+  if not path or path == "" then return false end
+  local ok, _, code = os.rename(path, path)
+  if ok or code == 13 then return true end
+  return false
+end
+
+local function ensureDirectory(path)
+  if not path or path == "" then return false end
+  if pathExists(path) then return true end
+  local osName = (love.system and love.system.getOS and love.system.getOS()) or (jit and jit.os) or ""
+  local quoted
+  if osName == "Windows" then
+    quoted = '"' .. path:gsub('"', '""') .. '"'
+    os.execute('mkdir ' .. quoted)
+  else
+    quoted = '"' .. path:gsub('"', '\\"') .. '"'
+    os.execute('mkdir -p ' .. quoted)
+  end
+  return pathExists(path)
+end
+
+local function fileExists(path)
+  if not path or path == "" then return false end
+  local f = io.open(path, "r")
+  if f then f:close(); return true end
+  return false
+end
+
+local function exportMoveLog()
+  local count = effectiveLogCount()
+  if count <= 0 then
+    return false, "ログがありません"
+  end
+
+  if not love or not love.filesystem or not love.filesystem.getSourceBaseDirectory then
+    return false, "保存先を特定できません"
+  end
+
+  local baseDir = love.filesystem.getSourceBaseDirectory()
+  if not baseDir or baseDir == "" then
+    return false, "保存先を特定できません"
+  end
+
+  local parent = parentDir(baseDir) or baseDir
+  local logDir = parent .. PATH_SEP .. "mitudomoe_log"
+  if not ensureDirectory(logDir) then
+    return false, "フォルダを作成できませんでした"
+  end
+
+  local now = os.date("*t")
+  local osName = (love.system and love.system.getOS and love.system.getOS()) or (jit and jit.os) or ""
+  local timeSep = (osName == "Windows") and "-" or ":"
+  local fileBase = string.format("%02d-%d-%d_%02d%s%02d",
+    (now.year or 0) % 100, now.month or 0, now.day or 0, now.hour or 0, timeSep, now.min or 0)
+
+  local basePath = logDir .. PATH_SEP .. fileBase
+  local path = basePath .. ".txt"
+  local idx = 1
+  while fileExists(path) do
+    path = string.format("%s(%d).txt", basePath, idx)
+    idx = idx + 1
+  end
+
+  local file, err = io.open(path, "w")
+  if not file then
+    return false, err or "ファイルを開けません"
+  end
+
+  for i = 1, count do
+    local text = moveLog.entries[i] and moveLog.entries[i].text or ""
+    file:write(text)
+    if i < count then file:write("\n") end
+  end
+  file:write("\n")
+  file:close()
+
+  print("[log] exported to " .. path)
+  return true, path
+end
 
 -- 駒UID & 戻し禁止
 local nextUID = 1
@@ -588,6 +753,14 @@ local function restore(s)
   winner    = s.winner
   selected  = nil
   effects   = {}
+end
+
+local function undoLastMove()
+  local s = table.remove(history)
+  if s then
+    restore(s)
+    markMoveLogUndo()
+  end
 end
 
 -- 勝敗（OR 条件）
@@ -1308,6 +1481,8 @@ function tryMove(from, toC, toR)
 
   resolveAdjacency(toC, toR)
 
+  recordMove(moverSide, from.c, from.r, toC, toR)
+
   selected = nil
   turnCount = turnCount + 1
 
@@ -1354,6 +1529,7 @@ resetGame = function()
   winner    = nil
   selected  = nil
   history   = {}
+  clearMoveLog()
 end
 
 -- 座標系・レイアウト
@@ -1362,13 +1538,19 @@ local function layoutUI()
   TEXT_W = math.min(TEXT_MAX_W, math.floor(winW * TEXT_RATIO))
   local availW = winW - TEXT_W - PAD*2
   scale = math.min(availW / boardW, (winH - PAD*2) / boardH)
-  drawX = winW - PAD - boardW * scale
-  drawY = (winH - boardH * scale) / 2
-  local gap = 8
+  drawX = winW - PAD - boardW * scale - BOARD_OFFSET_X
+  drawY = (winH - boardH * scale) / 2 + BOARD_OFFSET_Y
+  local gap = 12
 
   -- ボタンを上から順に
+  exportBtn.x = PAD
+  exportBtn.w = TEXT_W
+  local totalButtonsH = exportBtn.h + undoBtn.h + resetBtn.h + goTitleBtn.h + gap * 3
+  local startY = winH - PAD - totalButtonsH
+  exportBtn.y = startY
+
   undoBtn.x  = PAD
-  undoBtn.y  = winH - PAD - (undoBtn.h + resetBtn.h + goTitleBtn.h + gap*2)
+  undoBtn.y  = exportBtn.y + exportBtn.h + gap
   resetBtn.x = PAD
   resetBtn.y = undoBtn.y + undoBtn.h + gap
   goTitleBtn.x = PAD
@@ -1671,6 +1853,7 @@ handleTitleModalClick = function(mx, my, b)
   if pointInRect(mx,my, M.yes.x,M.yes.y,M.yes.w,M.yes.h) then
     if gameConfig.mode=="online" and net then net.close() end
     showTitleConfirm = false
+    clearMoveLog()
     switchScene("menu")
     return true
   elseif pointInRect(mx,my, M.no.x,M.no.y,M.no.w,M.no.h) then
@@ -1696,6 +1879,30 @@ local function game_update(dt)
       ::continue::
     end
   end
+  if moveLog.exportFeedback and moveLog.exportFeedback.timer then
+    moveLog.exportFeedback.timer = moveLog.exportFeedback.timer - dt
+    if moveLog.exportFeedback.timer <= 0 then
+      moveLog.exportFeedback = nil
+    end
+  end
+end
+
+local function game_wheelmoved(dx, dy)
+  if not dy or dy == 0 then return end
+  local rect = moveLog.viewRect
+  if not rect or rect.w <= 0 or rect.h <= 0 then return end
+  local mx, my = love.mouse.getPosition()
+  if not pointInRect(mx, my, rect.x, rect.y, rect.w, rect.h) then return end
+
+  local lineHeight = moveLog.lineHeight
+  if not lineHeight or lineHeight <= 0 then
+    local font = fonts.small or love.graphics.getFont()
+    lineHeight = font:getHeight() + 4
+  end
+
+  moveLog.scroll = moveLog.scroll - dy * lineHeight
+  if moveLog.scroll < 0 then moveLog.scroll = 0 end
+  if moveLog.scroll > moveLog.maxScroll then moveLog.scroll = moveLog.maxScroll end
 end
 
 local function drawPiece(img, c, r)
@@ -1737,12 +1944,72 @@ local function game_draw()
   love.graphics.print(("White: %d"):format(cw), tx, ycur); ycur = ycur + 20
 
   local textTop = ycur
-  local textBottom = undoBtn.y - 10
-  local textH = math.max(0, textBottom - textTop)
-  local sx, sy, sw, sh = math.floor(tx), math.floor(textTop), math.floor(tw), math.floor(textH)
-  love.graphics.setScissor(sx, sy, sw, sh)
-  love.graphics.setColor(0.1,0.1,0.1,1)
-  love.graphics.setScissor()
+  local textBottom = exportBtn.y - 26
+  local logX, logY, logW = tx, textTop, tw
+  local logH = math.max(0, textBottom - textTop)
+  if logH > 0 then
+    drawDoubleBorderRect(logX, logY, logW, logH, 10, { fillColor = {0.98,0.98,0.98,1} })
+    local logPad = 10
+    local innerX = logX + logPad
+    local innerY = logY + logPad
+    local innerW = math.max(0, logW - logPad * 2)
+    local innerH = math.max(0, logH - logPad * 2)
+    moveLog.viewRect.x, moveLog.viewRect.y = innerX, innerY
+    moveLog.viewRect.w, moveLog.viewRect.h = innerW, innerH
+
+    local logFont = fonts.small or fonts.ui or love.graphics.getFont()
+    love.graphics.setFont(logFont)
+    local lineGap = 4
+    local lineHeight = logFont:getHeight() + lineGap
+    moveLog.lineHeight = lineHeight
+    local contentHeight = lineHeight * #moveLog.entries
+    moveLog.maxScroll = math.max(0, contentHeight - innerH)
+    if moveLog.pendingScrollToEnd then
+      moveLog.scroll = moveLog.maxScroll
+      moveLog.pendingScrollToEnd = false
+    end
+    if moveLog.scroll < 0 then moveLog.scroll = 0 end
+    if moveLog.scroll > moveLog.maxScroll then moveLog.scroll = moveLog.maxScroll end
+
+    if innerW > 0 and innerH > 0 then
+      love.graphics.setScissor(innerX, innerY, innerW, innerH)
+      local startY = innerY - moveLog.scroll
+      local greyStart = #moveLog.entries - moveLog.undoneCount + 1
+      for i, entry in ipairs(moveLog.entries) do
+        local entryY = startY + (i - 1) * lineHeight
+        if entryY + lineHeight >= innerY and entryY <= innerY + innerH then
+          if moveLog.undoneCount > 0 and i >= greyStart then
+            love.graphics.setColor(0.55, 0.55, 0.55, 1)
+          else
+            love.graphics.setColor(0, 0, 0, 1)
+          end
+          love.graphics.print(entry.text or "", innerX, entryY)
+        end
+      end
+      love.graphics.setScissor()
+      love.graphics.setColor(0,0,0,1)
+    end
+  else
+    moveLog.viewRect.x, moveLog.viewRect.y = tx, textTop
+    moveLog.viewRect.w, moveLog.viewRect.h = tw, 0
+    moveLog.maxScroll = 0
+    moveLog.scroll = 0
+    moveLog.lineHeight = 0
+  end
+
+  if moveLog.exportFeedback and moveLog.exportFeedback.message then
+    local feedback = moveLog.exportFeedback
+    if feedback.timer and feedback.timer > 0 then
+      local msgFont = fonts.small or fonts.ui or love.graphics.getFont()
+      love.graphics.setFont(msgFont)
+      local color = feedback.ok and {0,0.35,0} or {0.6,0,0}
+      love.graphics.setColor(color)
+      love.graphics.printf(feedback.message, tx, exportBtn.y - msgFont:getHeight() - 6, tw, "left")
+      love.graphics.setColor(0,0,0,1)
+    end
+  end
+
+  drawButton(exportBtn, "Export", fonts.button, { disabled = effectiveLogCount() <= 0 })
 
   -- Undo：オンラインでは描かない（将来完全削除するならこのままでもOK）
   if gameConfig.mode ~= "online" then
@@ -1787,6 +2054,25 @@ local function game_draw()
       if p then drawPiece(pieceImg[p.id], c, r) end
     end
   end
+
+  local coordFont = fonts.coord or fonts.small or love.graphics.getFont()
+  love.graphics.setFont(coordFont)
+  love.graphics.setColor(0,0,0,1)
+  local sX, sY = stepSize()
+  local topY = drawY + (BOARD_INNER.y * scale) - coordFont:getHeight() - 6
+  local rightX = drawX + (BOARD_INNER.x + BOARD_INNER.w) * scale + 6
+  for c=1,GRID_COLS do
+    local cx = drawX + (BOARD_INNER.x + (c-1) * sX) * scale
+    local label = tostring(c)
+    love.graphics.print(label, cx - coordFont:getWidth(label)/2, topY)
+  end
+  for r=1,GRID_ROWS do
+    local cy = drawY + (BOARD_INNER.y + (r-1) * sY) * scale
+    local label = RANK_LABELS[r] or tostring(r)
+    love.graphics.print(label, rightX, cy - coordFont:getHeight()/2)
+  end
+  love.graphics.setFont(fonts.button or fonts.ui or love.graphics.getFont())
+  love.graphics.setColor(1,1,1,1)
 
   if #effects > 0 then
     for _,e in ipairs(effects) do
@@ -1912,12 +2198,35 @@ end
 local function handleTopButtons(mx, my, b)
   if b ~= 1 then return false end
 
+  if pointInRect(mx,my, exportBtn.x,exportBtn.y,exportBtn.w,exportBtn.h) then
+    if effectiveLogCount() <= 0 then
+      moveLog.exportFeedback = { ok = false, message = "ログがありません", timer = 3 }
+    else
+      local ok, pathOrErr = exportMoveLog()
+      if ok then
+        local fileName = pathOrErr:match("[^"..escapePattern(PATH_SEP).."]+$") or pathOrErr
+        moveLog.exportFeedback = {
+          ok = true,
+          message = ("エクスポートしました: %s"):format(fileName),
+          timer = 4,
+        }
+      else
+        moveLog.exportFeedback = {
+          ok = false,
+          message = pathOrErr or "エクスポートに失敗しました",
+          timer = 4,
+        }
+      end
+    end
+    return true
+  end
+
   -- Undo：オンラインでは廃止（クリックも無効化）
   if pointInRect(mx,my, undoBtn.x,undoBtn.y,undoBtn.w,undoBtn.h) then
     if gameConfig.mode=="online" then
       return true -- 何もしない（押下は飲む）
     end
-    local s = table.remove(history); if s then restore(s) end
+    undoLastMove()
     return true
   end
 
@@ -1981,7 +2290,7 @@ end
 
 local function game_keypressed(k)
   if k=="escape" then love.event.quit() return end
-  if k=="z" or k=="u" then local s=table.remove(history); if s then restore(s) end; return end
+  if k=="z" or k=="u" then undoLastMove(); return end
   if k=="r" then showResetConfirm=true; return end
   if showResetConfirm then
     if k=="y" then resetGame(); showResetConfirm=false end
@@ -2588,17 +2897,18 @@ function opt_online.draw()
     -- 無効オーバーレイ（見た目だけ薄くする）
     if opt_online.role == "join" then
       local blockW = pw - 72
-      love.graphics.setColor(1,1,1,0.6)
-      love.graphics.rectangle("fill", x - 12, y - 8, blockW + 24, lineH + 26, 8, 8)
+      love.graphics.setColor(0.98,0.98,0.98,0.6)
+      love.graphics.rectangle("fill", x - 12, y - 20, blockW + 24, lineH + 35, 8, 8)
       love.graphics.setColor(0,0,0,1)
     end
 
     y = y + lineH + SECTION_TIGHT
 
     -- 接続先
-    love.graphics.printf("接続先（IP/ホスト名とポート）", x, y, pw - 72, "left")
+    love.graphics.printf("接続先（IP/ホスト名）", x, y + 15, pw - 72, "left")
     y = y + fonts.ui:getHeight() + UI.controlGap
-    local hostW, portW = UI.selectW, 120
+    local hostW = UI.selectW + 12 + 120
+    --local portW = 120
     local hostLabel = opt_online.host or ""
     local hostColor = {0,0,0,1}
     if hostLabel == "" then
@@ -2609,12 +2919,11 @@ function opt_online.draw()
       hostLabel = "> " .. hostLabel
     end
     opt_online._host = drawSelect(x, y, hostW, UI.selectH, { text = hostLabel, color = hostColor })
-    local portLabel = (opt_online.focus=="port" and "> " or "")..opt_online.port
-    opt_online._port = drawSelect(x + hostW + 12,    y, portW, UI.selectH, portLabel)
-
     y = y + UI.selectH + 8
     love.graphics.setColor(0,0,0,0.7)
-    love.graphics.printf("※Join時は相手のIP/ポートに合わせてください。", x, y, pw - 72, "left")
+    love.graphics.printf("※接続相手のIPに合わせてください。", x, y, pw - 72, "left")
+    --local portLabel = (opt_online.focus=="port" and "> " or "")..opt_online.port
+    --opt_online._port = drawSelect(x + hostW + 12,    y, portW, UI.selectH, portLabel)
   end)
 
   drawButton(opt_online.startBtn, "Start", fonts.button)
@@ -2666,9 +2975,9 @@ function opt_online.mousepressed(x,y,b)
   if opt_online._host and pointInRect(x,y,opt_online._host.x,opt_online._host.y,opt_online._host.w,opt_online._host.h) then
     opt_online.focus = "host"; return
   end
-  if opt_online._port and pointInRect(x,y,opt_online._port.x,opt_online._port.y,opt_online._port.w,opt_online._port.h) then
-    opt_online.focus = "port"; return
-  end
+  --if opt_online._port and pointInRect(x,y,opt_online._port.x,opt_online._port.y,opt_online._port.w,opt_online._port.h) then
+  --  opt_online.focus = "port"; return
+  --end
 
   -- Start / Back
   if pointInRect(x,y,opt_online.startBtn.x,opt_online.startBtn.y,opt_online.startBtn.w,opt_online.startBtn.h) then
@@ -2681,7 +2990,8 @@ function opt_online.mousepressed(x,y,b)
     else
       gameConfig.online.host = opt_online.host ~= "" and opt_online.host or nil
     end
-    gameConfig.online.port=tonumber(opt_online.port) or 22122
+    --gameConfig.online.port=tonumber(opt_online.port) or 22122
+    gameConfig.online.port = DEFAULT_PORT
     switchScene("game_online")
     return
   end
@@ -2699,7 +3009,8 @@ function opt_online.keypressed(k)
   end
   if k=="backspace" and opt_online.focus then
     if opt_online.focus=="host" then opt_online.host = opt_online.host:sub(1,-2)
-    elseif opt_online.focus=="port" then opt_online.port = opt_online.port:sub(1,-2) end
+    --elseif opt_online.focus=="port" then opt_online.port = opt_online.port:sub(1,-2)
+    end
     return
   end
   if k=="return" or k=="kpenter" then opt_online.focus=nil; return end
@@ -2711,10 +3022,10 @@ function opt_online.textinput(t)
     if _acceptHostChar(t) and #opt_online.host < 64 then
       opt_online.host = opt_online.host .. t
     end
-  elseif opt_online.focus=="port" then
-    if _acceptPortChar(t) and #opt_online.port < 5 then
-      opt_online.port = opt_online.port .. t
-    end
+  --elseif opt_online.focus=="port" then
+  --  if _acceptPortChar(t) and #opt_online.port < 5 then
+  --    opt_online.port = opt_online.port .. t
+  --  end
   end
 end
 
@@ -2883,6 +3194,7 @@ scenes.game_com = {
   draw   = function()   game_com_draw()   end,
   mousepressed = function(x,y,b) game_com_mousepressed(x,y,b) end,
   keypressed   = function(k)     game_com_keypressed(k)       end,
+  wheelmoved   = function(dx,dy) game_wheelmoved(dx,dy)       end,
 }
 -- ====== /GAME vs COM ======
 
@@ -2897,6 +3209,7 @@ scenes.game_local = {
   draw   = function()     game_draw()     end,
   mousepressed = function(x,y,b) game_mousepressed(x,y,b) end,
   keypressed   = function(k)     game_keypressed(k)       end,
+  wheelmoved   = function(dx,dy) game_wheelmoved(dx,dy)   end,
 }
 -- ===== LÖVE callbacks & boot =====
 function love.load()
@@ -3005,6 +3318,7 @@ scenes.game_online = {
       game_keypressed(k)
     end
   end,
+  wheelmoved = function(dx,dy) game_wheelmoved(dx,dy) end,
 }
 -- ===== /GAME online =====
 
@@ -3017,6 +3331,7 @@ function love.draw() dispatch_draw() end
 function love.mousepressed(x,y,b) dispatch_mousepressed(x,y,b) end
 function love.keypressed(k) dispatch_keypressed(k) end
 function love.textinput(t) dispatch_textinput(t) end
+function love.wheelmoved(dx,dy) dispatch_wheelmoved(dx,dy) end
 
 function love.quit()
   training.cancel = true
